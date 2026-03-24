@@ -1,11 +1,12 @@
 "use client";
 import React, { useMemo } from "react";
-import { motion } from "framer-motion";
 
+import { motion } from "framer-motion";
+import { Trees } from "lucide-react";
 interface MerkleTreeVisualizerProps {
-  root: bigint;
-  leafCount: number;
-  depth: number;
+  root?: bigint;
+  leafCount?: number;
+  depth?: number;
   highlightedLeaf?: number;
 }
 
@@ -15,9 +16,9 @@ interface MerkleTreeVisualizerProps {
  * PRIVATE data (pathElements, pathIndices) remain hidden; only structure shown.
  */
 export function MerkleTreeVisualizer({
-  root,
-  leafCount,
-  depth,
+  root = 123456789n,
+  leafCount = 4,
+  depth = 3,
   highlightedLeaf,
 }: MerkleTreeVisualizerProps) {
   // Limit rendered tree depth to prevent UI overload
@@ -123,19 +124,29 @@ export function MerkleTreeVisualizer({
   }, [nodes]);
 
   return (
-    <div className="w-full flex flex-col items-center gap-4 p-4 bg-gradient-to-b from-[#1E1E32] to-[#12121E] rounded-lg border border-[#2A2A3E]">
-      <div className="text-sm text-[#B0B0B8]">
-        <span className="font-mono">
-          Depth: {renderDepth} | Leaves: {leafCount} | Root:{" "}
-          <span className="text-[#00FF88]">0x{root.toString(16).slice(0, 8)}...</span>
-        </span>
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl border border-border bg-surface p-5"
+    >
+      {/* Header */}
+      <div className="mb-4 flex items-center gap-3">
+        <div className="h-10 w-10 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+          <Trees className="h-6 w-6 text-indigo-400" />
+        </div>
+        <div>
+          <h3 className="font-heading text-lg font-semibold">Merkle Tree</h3>
+          <p className="text-xs text-muted">{leafCount} leaves, {renderDepth} levels</p>
+        </div>
       </div>
 
-      <svg
-        width={svgWidth}
-        height={svgHeight}
-        className="bg-[#0F0F17] border border-[#2A2A3E] rounded"
-      >
+      {/* SVG */}
+      <div className="flex justify-center mb-4">
+        <svg
+          width={svgWidth}
+          height={svgHeight}
+          className="bg-background/50 border border-border rounded-lg"
+        >
         {/* Draw edges */}
         {edges.map((edge, idx) => (
           <motion.line
@@ -144,7 +155,7 @@ export function MerkleTreeVisualizer({
             y1={edge.y1}
             x2={edge.x2}
             y2={edge.y2}
-            stroke={edge.active ? "#00FF88" : "#4A4A5A"}
+              stroke={edge.active ? "#10B981" : "#475569"}
             strokeWidth={edge.active ? 2 : 1}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -160,8 +171,8 @@ export function MerkleTreeVisualizer({
               cx={node.x}
               cy={node.y}
               r={nodeRadius}
-              fill={node.active ? "#00FF88" : node.isLeaf ? "#1E3A5F" : "#2A2A3E"}
-              stroke={node.active ? "#FFFF00" : node.isLeaf ? "#00FF88" : "#555566"}
+                fill={node.active ? "#10B981" : node.isLeaf ? "#1E293B" : "#264653"}
+                stroke={node.active ? "#FFFF00" : node.isLeaf ? "#10B981" : "#94A3B8"}
               strokeWidth={node.active ? 2 : 1}
             />
 
@@ -171,7 +182,7 @@ export function MerkleTreeVisualizer({
               y={node.y + 5}
               textAnchor="middle"
               fontSize="10"
-              fill={node.active ? "#000" : node.isLeaf ? "#00FF88" : "#888899"}
+                fill={node.active ? "#000" : node.isLeaf ? "#10B981" : "#CBD5E1"}
               fontWeight="bold"
             >
               {node.isLeaf ? "L" : "H"}
@@ -180,16 +191,24 @@ export function MerkleTreeVisualizer({
         ))}
 
         {/* Legend */}
-        <text x={10} y={20} fontSize="11" fill="#888899">
-          ■ Leaf ■ Hash ▓ Active Path
+          <text x={10} y={20} fontSize="11" fill="#94A3B8">
+            ■ Leaf ■ Hash ▓ Active
         </text>
       </svg>
-
-      <div className="text-xs text-[#888899] text-center">
-        {highlightedLeaf !== undefined
-          ? `Merkle path from leaf ${highlightedLeaf} to root (PRIVATE — proof data hidden)`
-          : "Tree structure (individual hash values hidden for privacy)"}
       </div>
-    </div>
+
+      {/* Info */}
+      <div className="space-y-2 border-t border-border pt-3">
+        <div className="flex justify-between text-xs text-muted">
+          <span>Root:</span>
+          <code className="text-cyan-400 font-code">0x{root.toString(16).slice(0, 8)}...</code>
+        </div>
+        <p className="text-xs text-muted">
+          {highlightedLeaf !== undefined
+            ? `Merkle path from leaf ${highlightedLeaf} to root (PRIVATE — proof data hidden)`
+            : "Tree structure (individual hash values hidden for privacy)"}
+        </p>
+      </div>
+    </motion.div>
   );
 }

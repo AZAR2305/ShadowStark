@@ -38,63 +38,66 @@ export function NullifierStatus({
     : "Not generated";
 
   return (
-    <div className="w-full bg-gradient-to-b from-[#1E1E32] to-[#12121E] rounded-lg border border-[#2A2A3E] p-6">
-      <div className="space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <h3 className="font-mono text-sm font-semibold text-[#E0E0E8]">
-            Nullifier (Replay Protection)
-          </h3>
-          <motion.div animate={{ scale: showAnimation ? 1.2 : 1 }}>
-            <Shield
-              size={20}
-              className={showAnimation ? "text-[#00FF88]" : "text-[#666677]"}
-            />
-          </motion.div>
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl border border-border bg-surface p-5 relative"
+    >
+      {/* Header */}
+      <div className="mb-4 flex items-center gap-3">
+        <motion.div animate={{ scale: showAnimation ? 1.2 : 1 }}>
+          <div className="h-10 w-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+            <Shield className={`h-6 w-6 ${showAnimation ? "text-emerald-400" : "text-blue-400"}`} />
+          </div>
+        </motion.div>
+        <div>
+          <h3 className="font-heading text-lg font-semibold">Nullifier</h3>
+          <p className="text-xs text-muted">Replay attack prevention</p>
         </div>
+      </div>
 
-        {/* Nullifier Display */}
-        <div className="bg-[#0F0F17] rounded-lg p-4 border border-[#2A2A3E]">
-          <div className="text-xs text-[#888899] mb-2">Nullifier Hash (PUBLIC)</div>
-          <motion.div
-            className="font-mono text-sm text-[#00FF88] break-all"
+        {/* Nullifier Hash */}
+        <div className="mb-3 rounded-lg border border-border bg-background/50 p-3">
+          <div className="text-xs text-muted mb-2">Nullifier Hash (PUBLIC)</div>
+          <motion.code
+            className="text-xs text-cyan-400 font-code break-all"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5 }}
           >
             {nullifierHex}
-          </motion.div>
+          </motion.code>
         </div>
 
         {/* Status Indicator */}
         <div className="space-y-2">
-          <div className="text-xs text-[#888899]">Status</div>
+          <div className="text-xs text-muted">Status</div>
           <motion.div
-            className="flex items-center gap-3 p-3 rounded-lg"
-            style={{
-              backgroundColor: isSpent ? "#FF55001A" : "#00FF881A",
-              borderLeft: `3px solid ${isSpent ? "#FF5500" : "#00FF88"}`,
-            }}
+            className={`flex items-center gap-3 p-3 rounded-lg border-l-4 ${
+              isSpent
+                ? "bg-red-500/10 border-red-500"
+                : "bg-emerald-500/10 border-emerald-500"
+            }`}
             initial={{ x: -10, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ duration: 0.3 }}
           >
             {isSpent ? (
               <>
-                <AlertCircle size={16} className="text-[#FF5500]" />
+                <AlertCircle size={16} className="text-red-400" />
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-[#FF9944]">Already Spent</p>
-                  <p className="text-xs text-[#FF7733]">
+                  <p className="text-sm font-semibold text-red-400">Already Spent</p>
+                  <p className="text-xs text-red-300">
                     This execution cannot be replayed
                   </p>
                 </div>
               </>
             ) : (
               <>
-                <CheckCircle size={16} className="text-[#00FF88]" />
+                <CheckCircle size={16} className="text-emerald-400" />
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-[#00FF88]">Not Spent</p>
-                  <p className="text-xs text-[#00CC66]">
+                  <p className="text-sm font-semibold text-emerald-400">Not Spent</p>
+                  <p className="text-xs text-emerald-300">
                     {isNew ? "✓ Fresh nullifier" : "Ready for execution"}
                   </p>
                 </div>
@@ -103,15 +106,15 @@ export function NullifierStatus({
           </motion.div>
         </div>
 
-        {/* Info Box */}
-        <div className="bg-[#0F0F17] rounded-lg p-4 text-xs text-[#888899] space-y-2 border border-[#2A2A3E]">
+        {/* Info */}
+        <div className="bg-background/50 rounded-lg p-3 text-xs text-muted space-y-2 border border-border mt-3">
           <p>
-            <span className="text-[#00FF88]">How it works:</span> Each strategy
+            <span className="text-emerald-400">How it works:</span> Each strategy
             execution generates a unique nullifier. Once used, it&apos;s recorded
             on-chain to prevent the same execution from being replayed.
           </p>
           <p>
-            <span className="text-[#FFA500]">Secret Key:</span> Never transmitted
+            <span className="text-amber-400">Secret Key:</span> Never transmitted
             or stored. Only your browser computes the nullifier.
           </p>
         </div>
@@ -119,13 +122,12 @@ export function NullifierStatus({
         {/* Animation pulse on fresh nullifier */}
         {showAnimation && (
           <motion.div
-            className="absolute inset-0 rounded-lg border border-[#00FF88]"
+            className="absolute inset-0 rounded-lg border border-emerald-400"
             initial={{ scale: 0, opacity: 1 }}
             animate={{ scale: 1.05, opacity: 0 }}
             transition={{ duration: 1 }}
           />
         )}
-      </div>
-    </div>
+    </motion.div>
   );
 }

@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo } from "react";
+import React from "react";
 import { motion } from "framer-motion";
 import { Shield } from "lucide-react";
 
@@ -26,35 +26,24 @@ export function RangeProofWidget({
   const estimatedUpperPos = 80;
   const estimatedValuePos = 50; // Visual position only
 
-  const proofStatus = useMemo(() => {
-    if (!proofGenerated) {
-      return { text: "Pending", color: "#FFA500", icon: "○" };
-    }
-    return { text: "Verified", color: "#00FF88", icon: "✓" };
-  }, [proofGenerated]);
 
   return (
-    <div className="w-full bg-gradient-to-b from-[#1E1E32] to-[#12121E] rounded-lg border border-[#2A2A3E] p-6">
-      <div className="space-y-4">
-        {/* Title and Status */}
-        <div className="flex items-center justify-between">
-          <h3 className="font-mono text-sm font-semibold text-[#E0E0E8]">
-            Range Proof Status
-          </h3>
-          <motion.div
-            className="flex items-center gap-2"
-            animate={{ scale: proofGenerated ? 1.1 : 1 }}
-            transition={{ duration: 0.3 }}
-          >
-            <div
-              className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: proofStatus.color }}
-            />
-            <span className="text-xs font-mono" style={{ color: proofStatus.color }}>
-              {proofStatus.text}
-            </span>
-          </motion.div>
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl border border-border bg-surface p-5"
+    >
+      {/* Header */}
+      <div className="mb-4 flex items-center gap-3">
+        <div className="h-10 w-10 rounded-lg bg-violet-500/20 flex items-center justify-center">
+          <Shield className="h-6 w-6 text-violet-400" />
         </div>
+        <div>
+          <h3 className="font-heading text-lg font-semibold">Range Proof</h3>
+          <p className="text-xs text-muted">64-bit value commitment</p>
+        </div>
+      </div>
+      <div className="space-y-4">
 
         {/* Number Line Visualization */}
         <div className="space-y-2">
@@ -145,6 +134,6 @@ export function RangeProofWidget({
           )}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

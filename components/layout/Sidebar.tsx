@@ -5,7 +5,6 @@ import { ArrowLeftRight, BarChart3, BookOpen, Hexagon, Play, Workflow } from "lu
 import { usePathname } from "next/navigation";
 import { ConnectWallet } from "@/components/wallet/ConnectWallet";
 import { TEEStatus } from "@/components/tee/TEEStatus";
-import { useStrategyStore } from "@/store/strategyStore";
 
 const links = [
   { href: "/builder", label: "ZK Builder", icon: Workflow },
@@ -17,10 +16,6 @@ const links = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { graph } = useStrategyStore();
-  const teeActive = graph.nodes.some(
-    (node) => node.type === "execute" && Boolean((node.data as { teeEnabled?: boolean }).teeEnabled),
-  );
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-[220px] border-r border-border bg-base">
@@ -63,7 +58,7 @@ export function Sidebar() {
             <span className="h-2 w-2 rounded-full bg-info" />
             Starknet Testnet
           </div>
-          <TEEStatus active={teeActive} />
+          <TEEStatus />
         </div>
       </div>
     </aside>

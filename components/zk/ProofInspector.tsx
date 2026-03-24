@@ -21,8 +21,8 @@ export function ProofInspector({ proof }: ProofInspectorProps) {
 
   if (!proof) {
     return (
-      <div className="w-full bg-gradient-to-b from-[#1E1E32] to-[#12121E] rounded-lg border border-[#2A2A3E] p-6">
-        <p className="text-sm text-[#888899] text-center">
+      <div className="w-full rounded-xl border border-border bg-surface p-6">
+        <p className="text-sm text-muted text-center">
           Generate a proof to inspect its structure
         </p>
       </div>
@@ -30,30 +30,34 @@ export function ProofInspector({ proof }: ProofInspectorProps) {
   }
 
   return (
-    <div className="w-full bg-gradient-to-b from-[#1E1E32] to-[#12121E] rounded-lg border border-[#2A2A3E] overflow-hidden">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="w-full rounded-xl border border-border bg-surface overflow-hidden"
+    >
       {/* Proof Hash */}
-      <div className="p-4 border-b border-[#2A2A3E]">
-        <div className="text-xs text-[#888899] mb-2">Proof Hash</div>
-        <div className="font-mono text-sm text-[#00FF88] break-all">
+      <div className="p-4 border-b border-border">
+        <div className="text-xs text-muted mb-2">Proof Hash</div>
+        <code className="font-code text-sm text-cyan-400 break-all">
           {proof.proofHash}
-        </div>
+        </code>
       </div>
 
       {/* PUBLIC Section */}
-      <motion.div className="border-b border-[#2A2A3E]">
+      <motion.div className="border-b border-border">
         <button
           onClick={() => setExpandedPublic(!expandedPublic)}
-          className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1A1A28] transition-colors"
+          className="flex w-full items-center justify-between border-b border-border px-4 py-3 transition-colors hover:bg-elevated"
         >
           <div className="flex items-center gap-2">
-            <Eye size={16} className="text-[#00FF88]" />
-            <span className="font-semibold text-[#E0E0E8]">PUBLIC Inputs</span>
-            <span className="text-xs px-2 py-1 bg-[#00FF881A] text-[#00FF88] rounded">
+            <Eye size={16} className="text-emerald-400" />
+            <span className="font-semibold text-foreground">PUBLIC Inputs</span>
+            <span className="text-xs px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded">
               Visible on-chain
             </span>
           </div>
           <motion.div animate={{ rotate: expandedPublic ? 180 : 0 }}>
-            <ChevronDown size={18} className="text-[#888899]" />
+            <ChevronDown size={18} className="text-muted" />
           </motion.div>
         </button>
 
@@ -65,41 +69,41 @@ export function ProofInspector({ proof }: ProofInspectorProps) {
               exit={{ height: 0 }}
               className="overflow-hidden"
             >
-              <div className="px-4 py-3 bg-[#0F0F17] space-y-3">
+              <div className="space-y-3 bg-background/50 px-4 py-3">
                 <div>
-                  <div className="text-xs text-[#666677]">commitment</div>
-                  <div className="font-mono text-sm text-[#00FF88]">
+                  <div className="text-xs text-slate-500">commitment</div>
+                  <code className="font-code text-sm text-cyan-400 block">
                     {proof.commitment.slice(0, 32)}...
-                  </div>
+                  </code>
                 </div>
                 <div>
-                  <div className="text-xs text-[#666677]">finalStateHash</div>
-                  <div className="font-mono text-sm text-[#00FF88]">
+                  <div className="text-xs text-slate-500">finalStateHash</div>
+                  <code className="font-code text-sm text-cyan-400 block">
                     {proof.finalStateHash.slice(0, 32)}...
-                  </div>
+                  </code>
                 </div>
                 <div>
-                  <div className="text-xs text-[#666677]">nullifier</div>
-                  <div className="font-mono text-sm text-[#00FF88]">
+                  <div className="text-xs text-slate-500">nullifier</div>
+                  <code className="font-code text-sm text-cyan-400 block">
                     {proof.nullifier}
-                  </div>
+                  </code>
                 </div>
                 <div>
-                  <div className="text-xs text-[#666677]">merkleRoot</div>
-                  <div className="font-mono text-sm text-[#00FF88]">
+                  <div className="text-xs text-slate-500">merkleRoot</div>
+                  <code className="font-code text-sm text-cyan-400 block">
                     {proof.merkleRoot}
-                  </div>
+                  </code>
                 </div>
-                <div className="pt-2 border-t border-[#2A2A3E] grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4 border-t border-border pt-2">
                   <div>
-                    <div className="text-xs text-[#666677]">constraints</div>
-                    <div className="font-mono text-sm text-[#00FF88]">
+                    <div className="text-xs text-slate-500">constraints</div>
+                    <div className="font-code text-sm text-cyan-400">
                       {proof.constraintCount}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-[#666677]">proof_size</div>
-                    <div className="font-mono text-sm text-[#00FF88]">
+                    <div className="text-xs text-slate-500">proof_size</div>
+                    <div className="font-code text-sm text-cyan-400">
                       {proof.proofSize} bytes
                     </div>
                   </div>
@@ -111,20 +115,20 @@ export function ProofInspector({ proof }: ProofInspectorProps) {
       </motion.div>
 
       {/* PRIVATE Section */}
-      <motion.div>
+      <motion.div className="border-t border-border">
         <button
           onClick={() => setExpandedPrivate(!expandedPrivate)}
-          className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#1A1A28] transition-colors"
+          className="w-full px-4 py-3 flex items-center justify-between hover:bg-elevated transition-colors"
         >
           <div className="flex items-center gap-2">
-            <Lock size={16} className="text-[#FF5500]" />
-            <span className="font-semibold text-[#E0E0E8]">PRIVATE Witnesses</span>
-            <span className="text-xs px-2 py-1 bg-[#FF55001A] text-[#FF5500] rounded">
+            <Lock size={16} className="text-red-400" />
+            <span className="font-semibold text-foreground">PRIVATE Witnesses</span>
+            <span className="text-xs px-2 py-1 bg-red-500/20 text-red-400 rounded">
               Never shown
             </span>
           </div>
           <motion.div animate={{ rotate: expandedPrivate ? 180 : 0 }}>
-            <ChevronDown size={18} className="text-[#888899]" />
+            <ChevronDown size={18} className="text-muted" />
           </motion.div>
         </button>
 
@@ -136,14 +140,14 @@ export function ProofInspector({ proof }: ProofInspectorProps) {
               exit={{ height: 0 }}
               className="overflow-hidden"
             >
-              <div className="px-4 py-3 bg-[#0F0F17] space-y-3 border-t border-[#2A2A3E]">
+              <div className="space-y-3 border-t border-border bg-background/50 px-4 py-3">
                 <div className="flex items-start gap-3">
-                  <Lock size={16} className="text-[#FF5500] mt-1 flex-shrink-0" />
+                  <Lock size={16} className="mt-1 shrink-0 text-red-400" />
                   <div>
-                    <div className="text-sm font-semibold text-[#FF9944]">
+                    <div className="text-sm font-semibold text-red-400">
                       Hidden from UI
                     </div>
-                    <div className="text-xs text-[#FF7733] mt-2 space-y-1">
+                    <div className="mt-2 space-y-1 text-xs text-red-300">
                       <p>✓ Merkle tree path elements</p>
                       <p>✓ Range proof bit decomposition</p>
                       <p>✓ Strategy execution steps</p>
@@ -153,8 +157,8 @@ export function ProofInspector({ proof }: ProofInspectorProps) {
                     </div>
                   </div>
                 </div>
-                <div className="pt-3 border-t border-[#2A2A3E]">
-                  <div className="text-xs text-[#888899]">
+                <div className="border-t border-border pt-3">
+                  <div className="text-xs text-muted">
                     Private witnesses are computed locally and never transmitted.
                     Only PUBLIC outputs (commitment, nullifier, merkleRoot) leave
                     your browser.
@@ -167,17 +171,17 @@ export function ProofInspector({ proof }: ProofInspectorProps) {
       </motion.div>
 
       {/* Verification Status */}
-      <div className="px-4 py-3 bg-[#0F0F17] border-t border-[#2A2A3E]">
+      <div className="px-4 py-3 bg-background/50 border-t border-border">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 bg-[#00FF88] rounded-full" />
-          <span className="text-xs font-mono text-[#00FF88]">
+          <div className="w-2 h-2 bg-emerald-400 rounded-full" />
+          <span className="text-xs font-code text-emerald-400">
             {proof.verified ? "Verified on-chain" : "Pending on-chain verification"}
           </span>
         </div>
-        <div className="text-xs text-[#666677] mt-2">
+        <div className="text-xs text-slate-500 mt-2">
           Generated {new Date(proof.timestamp).toLocaleTimeString()}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
