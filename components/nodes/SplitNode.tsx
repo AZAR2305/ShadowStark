@@ -1,34 +1,30 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { Handle, Position, type NodeProps } from "reactflow";
+import type { NodeProps } from "reactflow";
 
-import { Badge } from "@/components/ui/badge";
-import { colorByType, nodeCardClass } from "@/components/nodes/nodeStyles";
+import { BaseNode } from "@/components/nodes/BaseNode";
+import { colorByType } from "@/components/nodes/nodeStyles";
 
 export function SplitNode({ data, selected }: NodeProps) {
   const color = colorByType("split");
 
   return (
-    <motion.div
-      whileHover={{ scale: 1.02 }}
-      className={`${nodeCardClass} ${selected ? "ring-2 ring-primary" : ""}`}
-      style={{ borderLeft: `5px solid ${color}` }}
+    <BaseNode
+      title="Split"
+      icon="⎇"
+      accentColor={color}
+      selected={selected}
+      inputHandles={[{ top: 50 }]}
+      outputHandles={[
+        { id: "branch-a", top: 34 },
+        { id: "branch-b", top: 66 },
+      ]}
     >
-      <Handle type="target" position={Position.Left} style={{ background: color }} />
-      <div className="flex items-center gap-2 border-b border-border p-3 text-sm font-semibold">
-        <span style={{ color }}>⎇</span>
-        Split
+      <div>
+        Count: <span className="redacted">████</span>
       </div>
-      <div className="space-y-1 p-3 text-xs text-muted">
-        <div>Count: <span className="redacted">████</span></div>
-        <div>Mode: {data.splitMode ?? "equal"}</div>
-      </div>
-      <div className="flex items-center justify-between border-t border-border p-2 text-[10px]">
-        <Badge variant="private">PRIVATE 🔒</Badge>
-        <Badge variant="public">PUBLIC ✅</Badge>
-      </div>
-      <Handle type="source" position={Position.Right} style={{ background: color }} />
-    </motion.div>
+      <div>Mode: {data.splitMode ?? "equal"}</div>
+      <div className="text-[10px] text-muted/80">Outputs: branch-a / branch-b</div>
+    </BaseNode>
   );
 }

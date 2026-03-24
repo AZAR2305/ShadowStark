@@ -4,44 +4,121 @@
 
 :root {
   color-scheme: dark;
+  --bg-void: #04040a;
+  --bg-base: #080812;
+  --bg-surface: #0e0e1c;
+  --bg-elevated: #141428;
+  --bg-highlight: #1a1a35;
+
+  --node-condition: #06b6d4;
+  --node-condition-bg: #06b6d408;
+  --node-condition-border: #06b6d440;
+
+  --node-split: #f59e0b;
+  --node-split-bg: #f59e0b08;
+  --node-split-border: #f59e0b40;
+
+  --node-execute: #10b981;
+  --node-execute-bg: #10b98108;
+  --node-execute-border: #10b98140;
+
+  --node-constraint: #8b5cf6;
+  --node-constraint-bg: #8b5cf608;
+  --node-constraint-border: #8b5cf640;
+
+  --color-private: #ef4444;
+  --color-public: #10b981;
+  --color-warning: #f59e0b;
+  --color-info: #3b82f6;
+  --color-btc: #f7931a;
+  --color-proof: #a855f7;
+
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #475569;
+  --text-code: #7dd3fc;
 }
 
-* {
-  border-color: #1e1e32;
+@layer base {
+  * {
+    border-color: rgba(99, 102, 241, 0.12);
+  }
+
+  body {
+    background:
+      linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+      var(--bg-void);
+    background-size: 32px 32px;
+    color: var(--text-primary);
+    font-family: var(--font-body), sans-serif;
+  }
 }
 
 * :focus-visible {
-  outline: 2px solid #00ff88;
+  outline: 2px solid #6366f1;
   outline-offset: 2px;
 }
 
 ::selection {
-  background: #00ff88;
-  color: #080810;
+  background: #6366f1;
+  color: #f1f5f9;
 }
 
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #1e1e32;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #00ff88;
+  background: rgba(99, 102, 241, 0.3);
   border-radius: 9999px;
 }
 
-body {
-  background: #080810;
-  color: #ededfc;
-  font-family: var(--font-outfit), sans-serif;
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.6);
 }
 
-.redacted {
-  color: #ff3355;
-  font-family: var(--font-jetbrains-mono), monospace;
-  letter-spacing: 3px;
+@layer components {
+  .terminal-card {
+    background: var(--bg-surface);
+    border: 1px solid rgba(99, 102, 241, 0.12);
+    border-radius: 12px;
+    padding: 20px 24px;
+    transition: border-color 200ms ease;
+  }
+
+  .terminal-card:hover {
+    border-color: rgba(99, 102, 241, 0.3);
+  }
+
+  .badge-private {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  .badge-public {
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #6ee7b7;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  .redacted {
+    color: var(--color-private);
+    font-family: var(--font-code), monospace;
+    letter-spacing: 3px;
+    font-size: 13px;
+    opacity: 0.8;
+  }
 }

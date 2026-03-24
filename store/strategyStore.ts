@@ -20,7 +20,13 @@ interface StrategyState {
   updateNodeData: (id: string, data: Record<string, unknown>) => void;
   updateNodePosition: (id: string, position: { x: number; y: number }) => void;
   removeNode: (id: string) => void;
-  addEdge: (edge: { id?: string; source: string; target: string }) => void;
+  addEdge: (edge: {
+    id?: string;
+    source: string;
+    target: string;
+    sourceHandle?: string | null;
+    targetHandle?: string | null;
+  }) => void;
   setSelectedNode: (id: string | null) => void;
   validateGraph: () => boolean;
   resetGraph: () => void;
@@ -135,10 +141,19 @@ export const useStrategyStore = create<StrategyState>((set, get) => ({
       produce((state: StrategyState) => {
         const edgeId = edge.id ?? `${edge.source}-${edge.target}-${nanoid(4)}`;
         const exists = state.graph.edges.some(
-          (item) => item.source === edge.source && item.target === edge.target,
+          (item) =>
+            item.source === edge.source &&
+            item.target === edge.target &&
+            item.sourceHandle === edge.sourceHandle,
         );
         if (!exists) {
-          state.graph.edges.push({ id: edgeId, source: edge.source, target: edge.target });
+          state.graph.edges.push({
+            id: edgeId,
+            source: edge.source,
+            target: edge.target,
+            sourceHandle: edge.sourceHandle,
+            targetHandle: edge.targetHandle,
+          });
         }
       }),
     ),

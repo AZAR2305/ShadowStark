@@ -1,25 +1,25 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono, Outfit, Syne } from "next/font/google";
+import { DM_Sans, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 
 import "./globals.css";
-import { Navbar } from "@/components/layout/Navbar";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { Topbar } from "@/components/layout/Topbar";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 
-const syne = Syne({
+const displayFont = Space_Grotesk({
   subsets: ["latin"],
-  variable: "--font-syne",
-  weight: ["400", "700", "800"],
+  variable: "--font-display",
+  weight: ["400", "500", "600", "700"],
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const codeFont = JetBrains_Mono({
   subsets: ["latin"],
-  variable: "--font-jetbrains-mono",
+  variable: "--font-code",
 });
 
-const outfit = Outfit({
+const bodyFont = DM_Sans({
   subsets: ["latin"],
-  variable: "--font-outfit",
+  variable: "--font-body",
 });
 
 export const metadata: Metadata = {
@@ -35,14 +35,14 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${syne.variable} ${jetbrainsMono.variable} ${outfit.variable} min-h-screen bg-background text-foreground font-body antialiased`}
+        className={`${displayFont.variable} ${codeFont.variable} ${bodyFont.variable} min-h-screen bg-background text-foreground antialiased`}
       >
         <ThemeProvider>
-          <div className="min-h-screen">
-            <Navbar />
-            <div className="mx-auto flex max-w-[1400px]">
-              <Sidebar />
-              <div className="min-w-0 flex-1">{children}</div>
+          <div className="min-h-screen bg-background">
+            <Sidebar />
+            <div className="ml-[220px] min-h-screen">
+              <Topbar />
+              <main className="min-h-[calc(100vh-56px)]">{children}</main>
             </div>
           </div>
         </ThemeProvider>

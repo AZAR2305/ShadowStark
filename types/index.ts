@@ -32,7 +32,13 @@ export interface StrategyNode {
 
 export interface NodeGraph {
   nodes: StrategyNode[];
-  edges: { id: string; source: string; target: string }[];
+  edges: {
+    id: string;
+    source: string;
+    target: string;
+    sourceHandle?: string | null;
+    targetHandle?: string | null;
+  }[];
 }
 
 export interface Strategy {
@@ -119,4 +125,30 @@ export interface ExecutionLog {
   timestamp: number; // PRIVATE — never log or transmit
   constraintsSatisfied: boolean;
   witnessGenerated: boolean;
+}
+
+export interface WalletConnection {
+  connected: boolean;
+  address: string | null;
+  network: "starknet-testnet" | "starknet-mainnet";
+  walletName: "argentx" | "braavos" | "metamask-snap" | null;
+}
+
+export interface TEEAttestation {
+  enclaveType: "SGX" | "Nitro" | "simulated";
+  measurementHash: string;
+  timestamp: number;
+  valid: boolean;
+}
+
+export interface TradeRecord {
+  id: string;
+  direction: "buy" | "sell";
+  status: "active" | "pending" | "complete";
+  createdAt: number;
+  commitment: string;
+  proofHash?: string;
+  maskedAmount: string; // PRIVATE — never log or transmit
+  maskedPrice: string; // PRIVATE — never log or transmit
+  usesTEE: boolean;
 }

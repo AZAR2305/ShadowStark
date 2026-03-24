@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { GitBranch, Lock, Split, Zap } from "lucide-react";
+import { GitBranch, Shield, Shuffle, Zap } from "lucide-react";
 
 import type { NodeType } from "@/types";
 
@@ -16,33 +16,33 @@ export const NODE_CONFIGS: Record<NodeType, NodeConfig> = {
   condition: {
     type: "condition",
     label: "Condition",
-    color: "#00FF88",
+    color: "#06B6D4",
     icon: GitBranch,
     zkLabel: "Range Check",
-    description: "Evaluates BTC threshold conditions inside private witness",
+    description: "IF BTC price threshold",
   },
   split: {
     type: "split",
-    label: "Split",
-    color: "#FF6B35",
-    icon: Split,
+    label: "Split Trade",
+    color: "#F59E0B",
+    icon: Shuffle,
     zkLabel: "Partition",
-    description: "Splits order flow into randomized private partitions",
+    description: "Divide into N sub-trades",
   },
   execute: {
     type: "execute",
     label: "Execute",
-    color: "#4FC3F7",
+    color: "#10B981",
     icon: Zap,
     zkLabel: "State Transition",
-    description: "Applies deterministic buy/sell transition logic",
+    description: "Run trade action",
   },
   constraint: {
     type: "constraint",
     label: "Constraint",
-    color: "#CE93D8",
-    icon: Lock,
+    color: "#8B5CF6",
+    icon: Shield,
     zkLabel: "Assertion",
-    description: "Asserts private constraints in zero knowledge",
+    description: "Add rule / guard",
   },
 };

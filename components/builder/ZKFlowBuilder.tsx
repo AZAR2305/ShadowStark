@@ -2,11 +2,12 @@
 
 import "reactflow/dist/style.css";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ReactFlow, {
   Background,
   Controls,
   MiniMap,
+  MarkerType,
   type Connection,
   type Edge,
   type Node,
@@ -27,7 +28,10 @@ import { GraphValidator } from "@/components/builder/GraphValidator";
 import { CompileButton } from "@/components/builder/CompileButton";
 import { NodeToolbar } from "@/components/builder/NodeToolbar";
 import { NodeConfigPanel } from "@/components/builder/NodeConfigPanel";
-import { validateGraphAsDag } from "@/lib/graphCompiler";
+import { compileGraphToConstraints, validateGraphAsDag } from "@/lib/graphCompiler";
+import { ZKConstraintPreview } from "@/components/builder/ZKConstraintPreview";
+import { validateConnection } from "@/lib/flowRules";
+import { CompileFlow } from "@/components/builder/CompileFlow";
 
 const nodeTypes: NodeTypes = {
   condition: ConditionNode,
@@ -41,6 +45,8 @@ export function ZKFlowBuilder() {
     useStrategyStore();
 
   const [toast, setToast] = useState<string | null>(null);
+  const [isCompiling, setIsCompiling] = useState(false);
+  const [compileStage, setCompileStage] = useState(0);
 
   const nodes: Node[] = useMemo(
     () =>
@@ -56,17 +62,37 @@ export function ZKFlowBuilder() {
       graph.edges.map((edge) => ({
         ...edge,
         animated: true,
-        style: { strokeDasharray: 5, stroke: "#00FF88" },
+        style: { strokeDasharray: 5, stroke: "#00FF88", strokeWidth: 2 },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: "#00FF88",
+        },
       })),
     [graph.edges],
   );
 
   const onConnect = (params: Edge | Connection) => {
-    if (!params.source || !params.target) {
+    const source = params.source;
+    const target = params.target;
+    if (!source || !target) {
       return;
     }
-    const withId = { ...params, id: `${params.source}-${params.target}-${nanoid(4)}` };
-    addStoreEdge({ source: withId.source!, target: withId.target!, id: withId.id });
+
+    const validationResult = validateConnection(graph, params);
+    if (!validationResult.valid) {
+      setToast(validationResult.reason ?? "Invalid edge");
+      setTimeout(() => setToast(null), 2200);
+      return;
+    }
+
+    const withId = { ...params, id: `${source}-${target}-${nanoid(4)}` };
+    addStoreEdge({
+      source,
+      target,
+      sourceHandle: withId.sourceHandle,
+      targetHandle: withId.targetHandle,
+      id: withId.id,
+    });
   };
 
   const onNodesChange: OnNodesChange = (changes) => {
@@ -90,6 +116,11 @@ export function ZKFlowBuilder() {
 
   const selectedNode = graph.nodes.find((node) => node.id === selectedNodeId) ?? null;
   const validation = validateGraphAsDag(graph);
+  const constraints = useMemo(() => compileGraphToConstraints(graph), [graph]);
+  const estimatedProofSize = useMemo(
+    () => constraints.reduce((sum, item) => sum + item.estimatedSize, 1024),
+    [constraints],
+  );
 
   const onDrop: React.DragEventHandler<HTMLDivElement> = (event) => {
     event.preventDefault();
@@ -109,12 +140,30 @@ export function ZKFlowBuilder() {
     });
   };
 
+  useEffect(() => {
+    if (!isCompiling) {
+      return;
+    }
+
+    const timers = [350, 700, 1050].map((delay, index) =>
+      setTimeout(() => {
+        setCompileStage(index + 1);
+      }, delay),
+    );
+
+    return () => {
+      timers.forEach((timer) => clearTimeout(timer));
+    };
+  }, [isCompiling]);
+
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col overflow-hidden rounded-xl border border-border bg-background">
       <div className="flex min-h-0 flex-1">
-        <NodeToolbar />
+        <NodeToolbar constraintCount={constraints.length} estimatedProofSize={estimatedProofSize} />
 
         <div className="relative flex-1" onDrop={onDrop} onDragOver={(event) => event.preventDefault()}>
+          <CompileFlow active={isCompiling} stage={compileStage} />
+
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -146,17 +195,30 @@ export function ZKFlowBuilder() {
         <NodeConfigPanel node={selectedNode} onUpdate={updateNodeData} />
       </div>
 
-      <div className="flex items-center justify-between border-t border-border bg-surface px-4 py-3">
-        <GraphValidator graph={graph} />
-        <CompileButton
-          disabled={!validation.valid}
-          strategy={{ id: "local-strategy", graph, salt: "shadowflow", createdAt: Date.now() }}
-          onCompiled={(commitment) => {
-            setCommitment(commitment);
-            setToast(`Commitment stored locally: ${commitment.slice(0, 14)}...`);
-            setTimeout(() => setToast(null), 2500);
-          }}
-        />
+      <div className="grid grid-cols-1 gap-3 border-t border-border bg-surface px-4 py-3 lg:grid-cols-[1fr_auto]">
+        <div className="space-y-3">
+          <GraphValidator graph={graph} />
+          <ZKConstraintPreview
+            selectedNode={selectedNode}
+            constraints={constraints}
+            estimatedProofSize={estimatedProofSize}
+          />
+        </div>
+        <div className="flex items-start justify-end">
+          <CompileButton
+            disabled={!validation.valid}
+            strategy={{ id: "local-strategy", graph, salt: "shadowflow", createdAt: Date.now() }}
+            onLoadingChange={(loading) => {
+              setIsCompiling(loading);
+              setCompileStage(0);
+            }}
+            onCompiled={(commitment) => {
+              setCommitment(commitment);
+              setToast(`Commitment stored locally: ${commitment.slice(0, 14)}...`);
+              setTimeout(() => setToast(null), 2500);
+            }}
+          />
+        </div>
       </div>
     </div>
   );

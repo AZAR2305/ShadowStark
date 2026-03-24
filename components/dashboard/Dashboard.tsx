@@ -1,19 +1,23 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { CommitmentCard } from "@/components/dashboard/CommitmentCard";
 import { ExecutionTimeline } from "@/components/dashboard/ExecutionTimeline";
 import { ProofStatusCard } from "@/components/dashboard/ProofStatusCard";
 import { StarknetStatus } from "@/components/dashboard/StarknetStatus";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { generateZkProof, verifyZkProof } from "@/lib/zkProver";
+import { useZKProver } from "@/hooks/useZKProver";
+import { useStarknet } from "@/hooks/useStarknet";
 import { useProofStore } from "@/store/proofStore";
 import { useStrategyStore } from "@/store/strategyStore";
 
 export function Dashboard() {
   const { graph, commitment } = useStrategyStore();
-  const { startProofGeneration, setProgress, setProof, setStatus, proof } = useProofStore();
+  const { proof } = useProofStore();
+  const { generateProof } = useZKProver();
+  const { verifyAndExecuteProof } = useStarknet();
+  const [error, setError] = useState<string | null>(null);
 
   const constraints = useMemo(
     () =>
@@ -26,17 +30,37 @@ export function Dashboard() {
   );
 
   const onGenerate = async () => {
-    startProofGeneration();
-    setProgress(20);
+    try {
+      setError(null);
 
-    const next = await generateZkProof(graph, commitment ?? "0x0");
-    setProgress(70);
-    setStatus("verifying");
+      if (!commitment) {
+        throw new Error("No commitment found. Compile a strategy first.");
+      }
 
-    const verified = await verifyZkProof(next);
-    setProgress(100);
-    setProof({ ...next, verified });
-    setStatus(verified ? "complete" : "error");
+      const executeNode = graph.nodes.find((node) => node.type === "execute");
+      const conditionNode = graph.nodes.find((node) => node.type === "condition");
+
+      const executionSteps = graph.nodes.map((node) => `${node.type}:${node.id}`);
+
+      const amount = Number((executeNode?.data as { amount?: number } | undefined)?.amount ?? 0);
+      const price = Number((conditionNode?.data as { price?: number } | undefined)?.price ?? 0);
+
+      const tradeAmount = BigInt(Math.max(1, Math.floor(amount * 100_000_000))); // PRIVATE — never log or transmit
+      const centerPrice = BigInt(Math.max(1, Math.floor(price || 50_000))); // PRIVATE — never log or transmit
+      const spread = 2_000n;
+
+      const proof = await generateProof({
+        tradeAmount,
+        priceLower: centerPrice - spread,
+        priceUpper: centerPrice + spread,
+        executionSteps,
+      });
+
+      await verifyAndExecuteProof(proof);
+    } catch (nextError) {
+      const message = nextError instanceof Error ? nextError.message : "Execution failed";
+      setError(message);
+    }
   };
 
   return (
@@ -48,6 +72,11 @@ export function Dashboard() {
       </TabsList>
 
       <TabsContent value="overview" className="space-y-4">
+        {error ? (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        ) : null}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <CommitmentCard commitment={commitment} />
           <ProofStatusCard onGenerate={onGenerate} />

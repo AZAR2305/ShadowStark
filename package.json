@@ -46,6 +46,7 @@
     "reactflow": "^11.11.4",
     "recharts": "^3.8.0",
     "starknet": "^9.4.2",
+    "starknetkit": "^3.4.3",
     "tailwind-merge": "^3.5.0",
     "zod": "^4.3.6",
     "zustand": "^5.0.12"

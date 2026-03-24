@@ -11,9 +11,10 @@ interface CompileButtonProps {
   strategy: Strategy;
   disabled?: boolean;
   onCompiled: (commitment: string) => void;
+  onLoadingChange?: (loading: boolean) => void;
 }
 
-export function CompileButton({ strategy, disabled, onCompiled }: CompileButtonProps) {
+export function CompileButton({ strategy, disabled, onCompiled, onLoadingChange }: CompileButtonProps) {
   const [loading, setLoading] = useState(false);
 
   return (
@@ -21,11 +22,14 @@ export function CompileButton({ strategy, disabled, onCompiled }: CompileButtonP
       disabled={disabled || loading}
       onClick={async () => {
         setLoading(true);
+        onLoadingChange?.(true);
         try {
+          await new Promise((resolve) => setTimeout(resolve, 1400));
           const commitment = compileCommitment(strategy);
           onCompiled(commitment);
         } finally {
           setLoading(false);
+          onLoadingChange?.(false);
         }
       }}
     >
