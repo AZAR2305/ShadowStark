@@ -27,6 +27,8 @@
     "@reactflow/background": "^11.3.14",
     "@reactflow/controls": "^11.2.14",
     "@reactflow/minimap": "^11.7.14",
+    "@scure/base": "^2.0.0",
+    "@scure/btc-signer": "^2.0.1",
     "@scure/starknet": "^2.0.0",
     "@tailwindcss/typography": "^0.5.19",
     "@tremor/react": "^3.18.7",

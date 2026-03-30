@@ -26,6 +26,8 @@ import { ConstraintNode } from "@/components/nodes/ConstraintNode";
 import { ExecuteNode } from "@/components/nodes/ExecuteNode";
 import { SplitNode } from "@/components/nodes/SplitNode";
 import { BtcTransferNode } from "@/components/nodes/BtcTransferNode";
+import { BtcSendNode } from "@/components/nodes/BtcSendNode";
+import { BtcBuyNode } from "@/components/nodes/BtcBuyNode";
 import { useStrategyStore } from "@/store/strategyStore";
 import { GraphValidator } from "@/components/builder/GraphValidator";
 import { CompileButton } from "@/components/builder/CompileButton";
@@ -43,6 +45,8 @@ const nodeTypes: NodeTypes = {
   execute: ExecuteNode,
   constraint: ConstraintNode,
   btc_transfer: BtcTransferNode,
+  btc_send: BtcSendNode,
+  btc_buy: BtcBuyNode,
 };
 
 const templatePathValid = (
