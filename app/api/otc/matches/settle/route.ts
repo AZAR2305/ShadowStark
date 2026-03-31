@@ -31,7 +31,6 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    const unauthorized = message.includes("Unauthorized");
     const statusCode = message.includes("not found") ? 404 : 
                        message.includes("Both") ? 409 : 
                        message.includes("Invalid") ? 400 : 500;

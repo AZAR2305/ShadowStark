@@ -18,7 +18,6 @@ export function BtcSendNode({ data, selected }: NodeProps<BtcSendData>) {
   const BTC_COLOR = "#F7931A";
   const fee = data.fee ?? 546;  // Default UTXO minimum
   const commitment = data.commitment ?? "0x0000000000000000";
-  const btcAmount = data.btcAmount ?? 0;
 
   return (
     <motion.div

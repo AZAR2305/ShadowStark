@@ -115,10 +115,12 @@ export class LiquidityPoolService {
   public async executeSwap(
     inputAmount: string,
     fromToken: 'btc' | 'strk',
-    senderWallet: string,
-    receiverWallet: string,
+    _senderWallet: string,
+    _receiverWallet: string,
   ): Promise<SwapExecution> {
     try {
+      void _senderWallet;
+      void _receiverWallet;
       const swapId = `0x${Date.now().toString(16)}${Math.random().toString(16).slice(2, 18)}`;
 
       // Calculate output
@@ -188,9 +190,10 @@ export class LiquidityPoolService {
   public async addLiquidity(
     btcAmount: string,
     strkAmount: string,
-    depositorWallet: string,
+    _depositorWallet: string,
   ): Promise<{ lpTokens: string; transactionHash: string }> {
     try {
+      void _depositorWallet;
       const btcBig = BigInt(btcAmount);
       const strkBig = BigInt(strkAmount);
 
@@ -222,9 +225,10 @@ export class LiquidityPoolService {
    */
   public async removeLiquidity(
     lpTokenAmount: string,
-    removerWallet: string,
+    _removerWallet: string,
   ): Promise<{ btcAmount: string; strkAmount: string; transactionHash: string }> {
     try {
+      void _removerWallet;
       const lpBig = BigInt(lpTokenAmount);
 
       // Calculate amounts to return

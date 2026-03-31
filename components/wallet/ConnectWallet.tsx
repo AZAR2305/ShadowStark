@@ -8,37 +8,17 @@ import { useWalletStore } from "@/store/walletStore";
 import { fetchAllBalances } from "@/lib/balanceFetcher";
 import { btcClient } from "@/lib/btcClient";
 
-// ─── Xverse sats-connect types (lightweight, avoids full import issues) ────────
-type SatsConnectRequest = {
-  getAccounts: {
-    params: { purposes: string[]; message?: string };
-    result: { address: string; addressType: string; publicKey: string; purpose: string }[];
-  };
+type XverseInjectedProvider = {
+  request: (method: string, params?: unknown) => Promise<unknown>;
 };
-
-declare global {
-  interface Window {
-    XverseProviders?: {
-      BitcoinProvider?: {
-        request: <K extends keyof SatsConnectRequest>(
-          method: K,
-          params: SatsConnectRequest[K]["params"],
-        ) => Promise<{ result: { addresses: SatsConnectRequest["getAccounts"]["result"] } }>;
-      };
-    };
-    starknet?: {
-      enable: (opts?: Record<string, unknown>) => Promise<unknown>;
-      selectedAddress?: string;
-      account?: { address?: string };
-      disconnect?: () => Promise<void> | void;
-    };
-  }
-}
 
 // ─── Detect Xverse injection ──────────────────────────────────────────────────
 function getXverseProvider() {
   if (typeof window === "undefined") return null;
-  return window.XverseProviders?.BitcoinProvider ?? null;
+  const win = window as Window & {
+    XverseProviders?: { BitcoinProvider?: XverseInjectedProvider };
+  };
+  return win.XverseProviders?.BitcoinProvider ?? null;
 }
 
 async function connectXverse(): Promise<{ paymentAddress: string; ordinalsAddress: string } | null> {
@@ -46,20 +26,25 @@ async function connectXverse(): Promise<{ paymentAddress: string; ordinalsAddres
   if (!provider) return null;
 
   try {
-    const response = (await provider.request("getAccounts", {
+    const response = await provider.request("getAccounts", {
       purposes: ["payment", "ordinals"],
       message: "ShadowFlow BTC OTC — connect Xverse wallet for BTC testnet4 transfers",
-    })) as any;
+    });
 
-    if (!response || !response.result || !Array.isArray(response.result.addresses)) {
+    type XverseGetAccountsResponse = {
+      result?: { addresses?: Array<{ purpose: string; address: string }> };
+    };
+    const typed = response as XverseGetAccountsResponse;
+
+    if (!typed || !typed.result || !Array.isArray(typed.result.addresses)) {
       // Fallback shape if extension returns an array immediately
-      if (Array.isArray(response) && typeof response[0] === 'string') {
-        return { paymentAddress: response[0], ordinalsAddress: response[0] };
+      if (Array.isArray(response) && typeof response[0] === "string") {
+        return { paymentAddress: response[0] as string, ordinalsAddress: response[0] as string };
       }
       throw new Error("Xverse connection rejected or returned invalid schema.");
     }
 
-    const addresses = response.result.addresses;
+    const addresses = typed.result.addresses;
     const payment = addresses.find((a) => a.purpose === "payment");
     const ordinals = addresses.find((a) => a.purpose === "ordinals");
     return {

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "deploy:starknet": "powershell -ExecutionPolicy Bypass -File ./scripts/compile-and-deploy-starknet.ps1"
+    "deploy:starknet": "powershell -ExecutionPolicy Bypass -File ./scripts/compile-and-deploy-starknet.ps1",
+    "test:otc": "node scripts/test-otc-flow.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

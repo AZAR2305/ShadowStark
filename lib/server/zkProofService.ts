@@ -30,7 +30,7 @@ export class ZKProofService {
       const senderCommitment = this.generateCommitment(
         senderWallet,
         parseFloat(sendAmount),
-        sendChain === 'btc' ? 0 : 1,
+        sendChain === 'btc' ? "buy" : "sell",
         `intent:${intentId}:send`,
       );
 
@@ -38,7 +38,7 @@ export class ZKProofService {
       const receiverCommitment = this.generateCommitment(
         receiverWallet,
         parseFloat(receiveAmount),
-        receiveChain === 'btc' ? 0 : 1,
+        receiveChain === 'btc' ? "buy" : "sell",
         `intent:${intentId}:recv`,
       );
 
@@ -48,7 +48,7 @@ export class ZKProofService {
       const priceVerified = Math.abs(statedRate - oracleRate) / oracleRate <= rateTolerance;
 
       // Generate nullifier to prevent double-spending
-      const nullifier = this.generateNullifier(senderWallet, sendAmount, intentId);
+      const nullifier = this.generateNullifier(senderWallet, parseFloat(sendAmount), intentId);
 
       // Build a consistent proof structure compatible with:
       // - lib/zk/publicInputs hashing
@@ -105,7 +105,7 @@ export class ZKProofService {
     const buyerCommitment = this.generateCommitment(
       buyerWallet,
       amount,
-      0,
+      "buy",
       `match:${matchId}:buy`,
     );
 
@@ -113,7 +113,7 @@ export class ZKProofService {
     const sellerCommitment = this.generateCommitment(
       sellerWallet,
       amount,
-      1,
+      "sell",
       `match:${matchId}:sell`,
     );
 
@@ -126,7 +126,7 @@ export class ZKProofService {
     );
 
     // Generate nullifier to prevent double-spending
-    const nullifier = this.generateNullifier(sellerWallet, amount.toString(), matchId);
+    const nullifier = this.generateNullifier(sellerWallet, amount, matchId);
 
     // Legacy generation removed to prevent duplicate definition
 
@@ -190,7 +190,7 @@ export class ZKProofService {
         dirTag,
         pathTag,
       ]);
-    } catch (error) {
+    } catch {
       // Fallback to deterministic hash
       return `0xcommit_${Date.now()}${Math.random().toString(16).slice(2, 10)}`;
     }
@@ -216,7 +216,7 @@ export class ZKProofService {
         priceScaled,
         timeHex,
       ]);
-    } catch (error) {
+    } catch {
       return `0xsettle_${timestamp}${Math.random().toString(16).slice(2, 10)}`;
     }
   }
@@ -242,7 +242,7 @@ export class ZKProofService {
         matchTag,
         secretTag,
       ]);
-    } catch (error) {
+    } catch {
       return `0xnull_${Date.now()}${Math.random().toString(16).slice(2, 10)}`;
     }
   }
@@ -263,7 +263,7 @@ export class ZKProofService {
         nullifier,
         timeHex,
       ]);
-    } catch (error) {
+    } catch {
       return `0xstate_${timestamp}${Math.random().toString(16).slice(2, 10)}`;
     }
   }
@@ -284,7 +284,7 @@ export class ZKProofService {
         nullifier,
         merkleRoot,
       ]);
-    } catch (error) {
+    } catch {
       return `0xproof_${Date.now()}${Math.random().toString(16).slice(2, 10)}`;
     }
   }
@@ -320,7 +320,7 @@ export class ZKProofService {
         matchTag,
         timeHex,
       ]);
-    } catch (error) {
+    } catch {
       return `0xtee_${timestamp}${Math.random().toString(16).slice(2, 10)}`;
     }
   }

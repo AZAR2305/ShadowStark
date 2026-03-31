@@ -93,18 +93,18 @@ export async function POST(request: NextRequest) {
     // Return enriched response
     // ============================================
     return NextResponse.json({
-      transactionHash: (executionResult as any).escrow?.transactionHash || "0x0",
+      transactionHash: executionResult.escrow?.transactionHash || "0x0",
       strkAmount,
       btcAmount: expectedBtcAmount,
       rate: rate.toFixed(8),
       status: executionResult.finalStatus || "pending",
-      proofHash: (executionResult as any).proof?.onchainProofHash || (executionResult as any).proof?.offchainProof || "0x0",
+      proofHash: executionResult.proof.onchainProofHash || executionResult.proof.offchainProof || "0x0",
       priceData: {
         strkPrice: strkPrice.formattedPrice,
         btcPrice: btcPrice.formattedPrice,
         timestamp: Date.now(),
       },
-      web3Execution: (executionResult as any).steps || [],
+      web3Execution: executionResult.steps || [],
       message: `Successfully initiated STRK → BTC bridge swap. Sending ${strkAmount} STRK to receive ${expectedBtcAmount.toFixed(
         8
       )} BTC`,

@@ -40,10 +40,11 @@ export async function POST(request: NextRequest) {
       timestamp: result.timestamp,
       publishTime: result.publishTime,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error('Error converting amount:', error);
     return NextResponse.json(
-      { error: 'Conversion failed', message: error?.message },
+      { error: 'Conversion failed', message },
       { status: 500 }
     );
   }

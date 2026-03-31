@@ -14,7 +14,7 @@
 import { Account, Contract, RpcProvider, cairo, type Abi } from "starknet";
 import * as btc from "@scure/btc-signer";
 import { hex } from "@scure/base";
-import { btcClient, type BtcUtxo } from "@/lib/btcClient";
+import { btcClient } from "@/lib/btcClient";
 
 // ── Starknet config ─────────────────────────────────────────────────────────
 const STARKNET_RPC =
@@ -108,7 +108,7 @@ function getExecutorAccount(): Account {
     throw new Error("Missing STARKNET_EXECUTOR_ADDRESS or STARKNET_EXECUTOR_PRIVATE_KEY in .env");
   }
   const provider = getStarknetProvider();
-  return new Account(provider, EXECUTOR_ADDRESS, EXECUTOR_PRIVATE_KEY);
+  return new Account({ provider, address: EXECUTOR_ADDRESS, signer: EXECUTOR_PRIVATE_KEY });
 }
 
 function getMixerContract(): Contract {
@@ -116,9 +116,12 @@ function getMixerContract(): Contract {
     throw new Error("Missing NEXT_PUBLIC_SHADOWFLOW_CONTRACT_ADDRESS in .env");
   }
   const account = getExecutorAccount();
-  const contract = new Contract(MIXER_ABI, SHADOWFLOW_CONTRACT, getStarknetProvider());
-  contract.connect(account);
-  return contract;
+  // Starknet v9 Contract expects options object.
+  return new Contract({
+    abi: MIXER_ABI,
+    address: SHADOWFLOW_CONTRACT,
+    providerOrAccount: account,
+  });
 }
 
 /**

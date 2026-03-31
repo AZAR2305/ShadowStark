@@ -124,9 +124,12 @@ export class EscrowContractService {
     chain: 'btc' | 'strk',
     walletAddress: string,
     amount: string,
-    releaseHash: string
+    _releaseHash: string
   ): Promise<EscrowTransaction> {
     try {
+      // In this mocked service we don't use the settlement release hash, but we keep it
+      // to match the real integration signature.
+      void _releaseHash;
       const key = `${chain}:${walletAddress}`;
       const escrow = this.escrowBalances.get(key);
 
@@ -289,8 +292,8 @@ export class EscrowContractService {
   private generateTxHash(chain: 'btc' | 'strk'): string {
     const timestamp = Date.now().toString(16).padStart(8, '0');
     const random = Math.random().toString(16).slice(2, 26).padEnd(24, '0');
-    const prefix = chain === 'btc' ? 'tx' : 'tx';
-    return `0x${timestamp}${random}`;
+    const chainTag = chain === 'btc' ? 'b' : 's';
+    return `0x${chainTag}${timestamp}${random}`;
   }
 
   /**

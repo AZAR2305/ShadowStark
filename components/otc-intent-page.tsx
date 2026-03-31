@@ -4,6 +4,8 @@ import { FormEvent, useCallback, useMemo, useState, useEffect } from "react";
 import { CheckCircle2, Loader2, RefreshCw, ShieldCheck, XCircle, Wallet } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useXverseWallet } from "@/hooks/useXverseWallet";
+import { useWalletStore } from "@/store/walletStore";
+import { fetchAllBalances } from "@/lib/balanceFetcher";
 
 import type { ExecutionLog, OtcMatchRecord, TradeRecord, ZKProof, TEEAttestation } from "@/types";
 
@@ -130,6 +132,22 @@ export function OtcIntentPage() {
   const [livePrices, setLivePrices] = useState<LivePrices>({ btc: 0, strk: 0 });
   const [amountManuallyEdited, setAmountManuallyEdited] = useState(false);
   const [priceThresholdManuallyEdited, setPriceThresholdManuallyEdited] = useState(false);
+  const [starknetConnecting, setStarknetConnecting] = useState(false);
+  const [starknetError, setStarknetError] = useState<string | null>(null);
+  
+  // Starknet wallet from store
+  const {
+    connected: starknetConnected,
+    connecting: starknetConnectingStore,
+    address: starknetAddress,
+    setConnecting: setStarknetConnectingStore,
+    setConnected: setStarknetConnected,
+    setAddress: setStarknetAddress,
+    setWalletName,
+    setBalances: setStoreBalances,
+    btcAddress,
+    disconnect: disconnectStarknet,
+  } = useWalletStore();
 
   // Native live Oracle Price polling for accurate Frontend Estimates 
   useEffect(() => {
@@ -153,12 +171,86 @@ export function OtcIntentPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Set wallet address from BTC wallet when connected
+  // Set wallet address from BTC wallet when connected and auto-adjust chain direction
   useEffect(() => {
     if (wallet?.address) {
       setWalletAddress(wallet.address);
+      
+      // Auto-detect wallet type and swap chain direction
+      // Bitcoin wallets should send BTC, receive STRK
+      // Starknet wallets should send STRK, receive BTC
+      if (wallet.provider === 'xverse' || wallet.provider === 'unisat') {
+        // Bitcoin wallet connected - send BTC, receive STRK
+        setIntent(prev => ({
+          ...prev,
+          sendChain: 'btc',
+          receiveChain: 'strk',
+          // Don't clear receiveWalletAddress - user might have already entered it
+        }));
+      }
     }
-  }, [wallet?.address]);
+  }, [wallet?.address, wallet?.provider]);
+  
+  // Auto-fill Receive Wallet Address based on receiveChain
+  useEffect(() => {
+    let receiveWallet = '';
+    
+    if (intent.receiveChain === 'strk') {
+      // Need Starknet wallet
+      if (starknetConnected && starknetAddress) {
+        receiveWallet = starknetAddress;
+      } else {
+        receiveWallet = ''; // Don't auto-fill until connected
+      }
+    } else if (intent.receiveChain === 'btc') {
+      // Need Bitcoin wallet
+      if (walletAddress) {
+        receiveWallet = walletAddress;
+      } else {
+        receiveWallet = '';
+      }
+    }
+    
+    setIntent(prev => ({
+      ...prev,
+      receiveWalletAddress: receiveWallet
+    }));
+  }, [intent.receiveChain, starknetConnected, starknetAddress, walletAddress]);
+  
+  // Handle Starknet wallet connection
+  const handleStarknetConnect = async (walletType: "argentx" | "braavos" | "ready" | "metamask-snap") => {
+    try {
+      setStarknetConnecting(true);
+      setStarknetError(null);
+      setWalletName(walletType);
+      
+      const injectedWallet = (window as any).starknet;
+      if (!injectedWallet) {
+        throw new Error("No Starknet wallet detected. Install ArgentX or Braavos from their official sites.");
+      }
+      
+      await injectedWallet.enable({ showModal: true });
+      
+      const selectedAddress = injectedWallet.selectedAddress || injectedWallet.account?.address;
+      if (!selectedAddress) {
+        throw new Error("Wallet connection failed — no address returned.");
+      }
+      
+      setStarknetAddress(selectedAddress);
+      setStarknetConnected(true);
+      
+      // Fetch balances
+      const balances = await fetchAllBalances(selectedAddress, btcAddress);
+      setStoreBalances(balances.btc, balances.strk, balances.eth);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Starknet connection failed";
+      setStarknetError(msg);
+      console.error("[OTC] Starknet connect failed:", err);
+      disconnectStarknet();
+    } finally {
+      setStarknetConnecting(false);
+    }
+  };
 
   const encodedWallet = useMemo(() => encodeURIComponent(walletAddress.trim()), [walletAddress]);
 
@@ -177,7 +269,7 @@ export function OtcIntentPage() {
         walletAddress.trim().toLowerCase().startsWith("tb1") ||
         walletAddress.trim().toLowerCase().startsWith("bc1")
           ? walletAddress.trim()
-          : wallet?.address ?? "";
+          : wallet || "";
       const starknetAddress = intent.receiveWalletAddress.trim().startsWith("0x")
         ? intent.receiveWalletAddress.trim()
         : "";
@@ -212,7 +304,7 @@ export function OtcIntentPage() {
     } finally {
       setLoading(false);
     }
-  }, [walletAddress, encodedWallet, wallet?.address, intent.receiveWalletAddress]);
+  }, [walletAddress, encodedWallet, intent.receiveWalletAddress]);
 
   // When we connect a BTC wallet, immediately fetch balances so the form
   // doesn't rely on any hardcoded default amounts.
@@ -261,20 +353,49 @@ export function OtcIntentPage() {
   const handleIntentSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      const wallet = walletAddress.trim();
-      if (!wallet) {
-        setError("Wallet address is required before submitting an intent.");
-        return;
-      }
-
+      
       setSubmitting(true);
       setError(null);
       setSuccess(null);
 
       try {
+        // Validate wallet connections based on chains
+        if (intent.sendChain === 'btc' && !walletAddress) {
+          setError("❌ Connect BTC wallet (Xverse or Unisat) to send BTC");
+          setSubmitting(false);
+          return;
+        }
+        
+        if (intent.sendChain === 'strk' && !starknetAddress) {
+          setError("❌ Connect Starknet wallet (ArgentX or Braavos) to send STRK");
+          setSubmitting(false);
+          return;
+        }
+        
+        if (intent.receiveChain === 'strk' && !starknetAddress) {
+          setError("❌ Connect Starknet wallet (ArgentX or Braavos) to receive STRK");
+          setSubmitting(false);
+          return;
+        }
+        
+        if (intent.receiveChain === 'btc' && !walletAddress) {
+          setError("❌ Connect BTC wallet to receive BTC");
+          setSubmitting(false);
+          return;
+        }
+        
+        if (!intent.receiveWalletAddress) {
+          setError(`❌ Receive wallet address is required`);
+          setSubmitting(false);
+          return;
+        }
+
         const amountNum = Number(intent.amount);
         const priceThresholdNum = Number(intent.priceThreshold);
         const depositAmountNum = Number(intent.depositAmount);
+
+        // Determine the correct sender wallet based on sendChain
+        const senderWallet = intent.sendChain === 'btc' ? walletAddress : starknetAddress;
 
         if (!Number.isFinite(amountNum) || amountNum <= 0) {
           setError("Enter a valid send amount (BTC/STRK) before submitting.");
@@ -285,40 +406,162 @@ export function OtcIntentPage() {
           return;
         }
 
-        await requestJson("/api/otc/intents", {
-          method: "POST",
-          body: JSON.stringify({
-            walletAddress: wallet,
-            direction: intent.direction,
-            templateId: intent.templateId,
-            selectedPath: intent.selectedPath,
-            amount: amountNum,
-            priceThreshold: priceThresholdNum,
-            splitCount: Number(intent.splitCount),
-            depositAmount: depositAmountNum,
-            depositConfirmed: intent.depositConfirmed,
-            sendChain: intent.sendChain,
-            receiveChain: intent.receiveChain,
-            receiveWalletAddress: intent.receiveWalletAddress,
-          }),
-        });
-
-        setSuccess("Intent submitted successfully! Redirecting to swap matching...");
+        // ============================================
+        // STEP 1: Validate intent & get message to sign
+        // ============================================
+        setSuccess("Step 1: Validating intent with ZK proof...");
         
-        // Redirect to swap matching interface
+        const validateResponse = await requestJson<{ intentId: string; messageToSign: string; zkProof: unknown }>(
+          "/api/otc/intents",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              walletAddress: senderWallet,
+              direction: intent.direction,
+              templateId: intent.templateId,
+              selectedPath: intent.selectedPath,
+              amount: amountNum,
+              priceThreshold: priceThresholdNum,
+              splitCount: Number(intent.splitCount),
+              depositAmount: depositAmountNum,
+              depositConfirmed: intent.depositConfirmed,
+              sendChain: intent.sendChain,
+              receiveChain: intent.receiveChain,
+              receiveWalletAddress: intent.receiveWalletAddress,
+              step: "validate", // <- STEP 1
+            }),
+          }
+        );
+
+        const { intentId, messageToSign } = validateResponse;
+        // messageToSign is an object with { message, intentId, sendAmount, receiveAmount, sendChain, receiveChain }
+        let messageText = typeof messageToSign === 'string' ? messageToSign : messageToSign.message;
+        
+        // Shorten message for wallet signing (Starknet has character limits)
+        // Extract key info: intentId (first 10 chars), amount, chains
+        const shortMessage = `OTC:${intentId.slice(0, 10)}`;
+        console.log("[OTC-INTENT] Validation passed, signing with intent ID:", shortMessage);
+
+        // ============================================
+        // STEP 2: Request wallet signature
+        // ============================================
+        setSuccess("Step 2: Requesting wallet signature... (Check your wallet!)");
+        
+        let signature: string;
+        let signatureStr: string; // Declare in outer scope
+        try {
+          // Request signature from Starknet wallet (Argent X or Braavos)
+          const starknet = (window as any).starknet;
+          if (!starknet || !starknet.account) {
+            throw new Error(
+              "Starknet wallet not connected. Please install and open Argent X or Braavos in your browser."
+            );
+          }
+
+          // Sign the message with wallet (using short message to avoid length limits)
+          signature = await starknet.account.signMessage({
+            types: {
+              StarkNetDomain: [
+                { name: "name", type: "shortstring" },
+                { name: "version", type: "shortstring" },
+                { name: "chainId", type: "shortstring" },
+              ],
+              Message: [{ name: "message", type: "string" }],
+            },
+            primaryType: "Message",
+            domain: {
+              name: "ShadowFlow OTC",
+              version: "1",
+              chainId: "SN_SEPOLIA",
+            },
+            message: {
+              message: shortMessage, // Use shortened message (intent ID only)
+            },
+          });
+
+          console.log("[OTC-INTENT] Signature obtained:", typeof signature);
+          // Convert signature to string if it's not already
+          signatureStr = typeof signature === 'string' ? signature : JSON.stringify(signature);
+          
+          setSuccess("Step 2: ✓ Signature granted!");
+        } catch (walletError) {
+          const errorMsg = walletError instanceof Error ? walletError.message : String(walletError);
+          
+          // Check for chain mismatch error
+          if (errorMsg.includes("different chainId") || errorMsg.includes("SN_MAIN")) {
+            throw new Error(
+              "⚠️ WALLET ON WRONG CHAIN!\n\n" +
+              "Your Starknet wallet is on MAINNET, but we need SEPOLIA TESTNET.\n\n" +
+              "✓ Fix: Open Argent X or Braavos → Settings → Network → Select 'Starknet Sepolia'\n\n" +
+              "Then try again."
+            );
+          }
+          
+          if (errorMsg.includes("USER_REFUSED")) {
+            throw new Error(
+              "❌ Signature request denied.\n\n" +
+              "You rejected the wallet signature popup.\n\n" +
+              "✓ Please approve the signature request in your wallet to continue."
+            );
+          }
+          
+          throw new Error(
+            `Wallet signature failed: ${errorMsg}\n\n` +
+            "Make sure:\n" +
+            "1. Starknet wallet (Argent X or Braavos) is installed\n" +
+            "2. Wallet is on SEPOLIA testnet (not mainnet)\n" +
+            "3. Wallet is open and unlocked"
+          );
+        }
+
+        // ============================================
+        // STEP 3: Execute intent with signature
+        // ============================================
+        setSuccess("Step 3: Executing bridge swap...");
+        
+        const executeResponse = await requestJson<{ transactionHash: string }>(
+          "/api/otc/intents",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              walletAddress: wallet,
+              intentId, // <- From step 1
+              signature: signatureStr, // <- From step 2, already stringified
+              amount: amountNum,
+              priceThreshold: priceThresholdNum,
+              sendChain: intent.sendChain,
+              receiveChain: intent.receiveChain,
+              receiveWalletAddress: intent.receiveWalletAddress,
+              step: "execute", // <- STEP 3
+            }),
+          }
+        );
+
+        console.log("[OTC-INTENT] Execution complete:", executeResponse);
+        setSuccess(
+          `✓ Intent submitted successfully!\n` +
+          `Transaction Hash: ${executeResponse.transactionHash || 'pending'}\n` +
+          `Waiting for match...`
+        );
+
+        // Redirect to waiting/matching page to show order book and wait for match
         setTimeout(() => {
           const params = new URLSearchParams({
-            wallet: wallet,
-            direction: intent.direction,
-            amount: intent.amount,
-            price: intent.priceThreshold,
+            intentId: intentId,
+            sendAmount: intent.amount,
+            sendChain: intent.sendChain,
+            receiveAmount: intent.priceThreshold,
+            receiveChain: intent.receiveChain,
+            walletAddress: wallet,
           });
-          router.push(`/swap-matching?${params.toString()}`);
-        }, 500);
+          router.push(`/otc-waiting?${params.toString()}`);
+        }, 1000);
 
         await fetchBackendState();
       } catch (submitError) {
-        setError(submitError instanceof Error ? submitError.message : "Intent submission failed.");
+        const errorMsg = submitError instanceof Error ? submitError.message : "Intent submission failed.";
+        console.error("[OTC-INTENT] Error:", errorMsg);
+        setError(errorMsg);
       } finally {
         setSubmitting(false);
       }
@@ -432,6 +675,48 @@ export function OtcIntentPage() {
             </button>
           </div>
 
+          {/* Starknet Wallet Connection Section */}
+          <div className="mt-4 rounded-2xl border-2 border-blue-500 bg-blue-50 p-4">
+            <p className="text-xs font-bold uppercase text-blue-900">⚡ Starknet Wallet</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {!starknetConnected ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleStarknetConnect("argentx")}
+                    disabled={starknetConnecting}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                  >
+                    {starknetConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
+                    ArgentX
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStarknetConnect("braavos")}
+                    disabled={starknetConnecting}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-purple-600 px-4 text-sm font-semibold text-white hover:bg-purple-700 disabled:opacity-60"
+                  >
+                    {starknetConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
+                    Braavos
+                  </button>
+                </>
+              ) : (
+                <div className="w-full rounded-lg border-2 border-green-600 bg-green-50 px-4 py-3 text-sm font-semibold flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-green-600" />
+                    {starknetAddress?.slice(0, 6)}...{starknetAddress?.slice(-6)}
+                  </span>
+                  <span className="text-xs text-green-700">STARKNET CONNECTED</span>
+                </div>
+              )}
+            </div>
+            {starknetError && (
+              <div className="mt-2 rounded-lg bg-red-100 p-2 text-xs text-red-700">
+                {starknetError}
+              </div>
+            )}
+          </div>
+
           {walletError && (
             <div className="mt-4 flex items-center gap-2 rounded-xl border-2 border-[#D63B3B] bg-[#FFECEC] px-4 py-3 text-sm text-[#8C2323]">
               <XCircle className="h-4 w-4" />
@@ -439,14 +724,38 @@ export function OtcIntentPage() {
             </div>
           )}
 
+          <div className="mt-4 rounded-2xl border-2 border-purple-500 bg-purple-50 p-4">
+            <p className="text-xs font-bold uppercase text-purple-900">💡 Two-Wallet System</p>
+            <div className="mt-2 space-y-2 text-xs text-purple-800">
+              <p>
+                <strong>Sender ({intent.sendChain.toUpperCase()}):</strong> {
+                  intent.sendChain === 'btc' 
+                    ? (walletAddress ? `${walletAddress.slice(0, 10)}...${walletAddress.slice(-10)}` : "Connect BTC wallet")
+                    : (starknetAddress ? `${starknetAddress.slice(0, 10)}...${starknetAddress.slice(-10)}` : "Connect Starknet wallet")
+                }
+              </p>
+              <p>
+                <strong>Receiver ({intent.receiveChain.toUpperCase()}):</strong> {intent.receiveWalletAddress ? `${intent.receiveWalletAddress.slice(0, 10)}...${intent.receiveWalletAddress.slice(-10)}` : "Will auto-fill"}
+              </p>
+              <p className="pt-2 text-purple-700">
+                You will <strong>send {intent.sendAmount || "?"} {intent.sendChain.toUpperCase()}</strong> and 
+                <strong> receive {intent.priceThreshold || "?"} {intent.receiveChain.toUpperCase()}</strong>.
+              </p>
+            </div>
+          </div>
+
           <div className="mt-5 grid gap-3 md:grid-cols-4">
             <div className="rounded-2xl border-2 border-black bg-[#FFF3D9] p-3">
-              <p className="text-xs font-semibold uppercase">BTC</p>
-              <p className="mt-1 text-xl font-bold">{data.balances.btcBalance}</p>
+              <p className="text-xs font-semibold uppercase">You Send ({intent.sendChain.toUpperCase()})</p>
+              <p className="mt-1 text-xl font-bold">
+                {intent.sendChain === 'btc' ? data.balances.btcBalance : data.balances.strkBalance}
+              </p>
             </div>
             <div className="rounded-2xl border-2 border-black bg-[#E6F2FF] p-3">
-              <p className="text-xs font-semibold uppercase">STRK</p>
-              <p className="mt-1 text-xl font-bold">{data.balances.strkBalance}</p>
+              <p className="text-xs font-semibold uppercase">You Receive ({intent.receiveChain.toUpperCase()})</p>
+              <p className="mt-1 text-xl font-bold">
+                {intent.receiveChain === 'btc' ? data.balances.btcBalance : data.balances.strkBalance}
+              </p>
             </div>
             <div className="rounded-2xl border-2 border-black bg-[#FFE6EB] p-3">
               <p className="text-xs font-semibold uppercase">Merkle Root</p>
@@ -476,6 +785,17 @@ export function OtcIntentPage() {
         <div className="grid gap-6 lg:grid-cols-2">
           <form onSubmit={handleIntentSubmit} className="rounded-3xl border-4 border-black bg-white p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
             <h2 className="text-xl font-bold">Create Intent</h2>
+            
+            <div className="mt-4 rounded-xl border-2 border-blue-600 bg-blue-50 p-4 text-sm">
+              <p className="font-semibold text-blue-900">📋 Signing with Starknet Wallet</p>
+              <p className="mt-2 text-blue-800">
+                When you click "Submit Intent", you'll be asked to sign with a <strong>Starknet wallet</strong> (Argent X or Braavos).
+              </p>
+              <p className="mt-2 text-xs text-blue-700">
+                ✓ Make sure your Starknet wallet is on <strong>SEPOLIA TESTNET</strong> (not mainnet)
+              </p>
+            </div>
+            
             <div className="mt-4 grid gap-3">
               <label className="text-sm font-semibold">
                 Direction

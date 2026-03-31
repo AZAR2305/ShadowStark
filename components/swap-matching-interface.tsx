@@ -572,6 +572,7 @@ export function SwapMatchingInterface({
     ports,
     selectedMatch,
     confirmOnBackend,
+    confirmEscrowDeposit,
     participantRole,
     fetchMatches,
   ]);

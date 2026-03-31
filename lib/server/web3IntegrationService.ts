@@ -11,7 +11,6 @@
 import { RpcProvider, Account } from 'starknet';
 import { PythPriceService } from './pythPriceService';
 import { ZKProofService } from './zkProofService';
-import { EscrowContractService } from './escrowContractService';
 import type { ZKProof } from '@/types';
 import { getProofPublicInputsHash } from '@/lib/zk/publicInputs';
 import { registerValidProofOnChain, verifyAndStoreOnChain } from './executionGateway';
@@ -20,7 +19,7 @@ export interface Web3ExecutionFlow {
   step: number;
   name: string;
   status: 'pending' | 'completed' | 'failed';
-  data?: any;
+  data?: unknown;
   error?: string;
 }
 
@@ -43,6 +42,7 @@ export interface IntentExecutionResult {
     swapExecuted: boolean;
     fromAmount: string;
     toAmount: string;
+    transactionHash?: string;
   };
 }
 
@@ -218,6 +218,7 @@ export class Web3IntegrationService {
       result.bridge.swapExecuted = swapResult.success;
       result.bridge.fromAmount = swapResult.fromAmount;
       result.bridge.toAmount = swapResult.toAmount;
+      result.bridge.transactionHash = swapResult.transactionHash;
       result.steps[5].status = swapResult.success ? 'completed' : 'failed';
       result.steps[5].data = swapResult;
 
@@ -307,9 +308,10 @@ export class Web3IntegrationService {
   private async createEscrowDeposit(
     chain: bigint,
     amount: bigint,
-    proofHash: string
+    _proofHash: string
   ): Promise<string> {
     try {
+      void _proofHash;
       // In production, this calls the Escrow contract on Starknet
       console.log(`Creating escrow deposit: ${amount} on chain ${chain}`);
       
@@ -327,11 +329,13 @@ export class Web3IntegrationService {
    */
   private async lockEscrowWithProof(
     chain: bigint,
-    proofHash: string,
-    nullifier: string
+    _proofHash: string,
+    _nullifier: string
   ): Promise<void> {
     try {
-      console.log(`Locking escrow with proof: ${proofHash}`);
+      void chain;
+      console.log(`Locking escrow with proof: ${_proofHash}`);
+      void _nullifier;
       // Mock - real implementation calls Escrow contract
     } catch (error) {
       console.error('Escrow lock failed:', error);
@@ -349,27 +353,41 @@ export class Web3IntegrationService {
     senderWallet: string,
     receiverWallet: string,
     proofHash: string
-  ): Promise<{ success: boolean; fromAmount: string; toAmount: string }> {
+  ): Promise<{ success: boolean; fromAmount: string; toAmount: string; transactionHash?: string; error?: string }> {
     let mockedToAmount = "0";
     try {
       // Fallback: compute expected amounts using live Pyth conversion
       const pythService = PythPriceService.getInstance();
       const conversion = await pythService.convertAmount(fromAmount, fromChain.toUpperCase(), toChain.toUpperCase());
-
       mockedToAmount = conversion.toAmount.toString();
 
       // If we don't have bridge contract addresses configured, we can only mock.
       const haveBuy = Boolean(this.buyStrkContractAddress);
       const haveSell = Boolean(this.sellStrkContractAddress);
-
       const executorAvailable =
         Boolean(process.env.STARKNET_EXECUTOR_ADDRESS) && Boolean(process.env.STARKNET_EXECUTOR_PRIVATE_KEY);
 
-      if (!executorAvailable || (!haveBuy && fromChain === 'btc') || (!haveSell && fromChain === 'strk')) {
-        return { success: false, fromAmount: conversion.fromAmount.toString(), toAmount: mockedToAmount };
+      if (!executorAvailable) {
+        const error = 'Executor account not configured. Missing STARKNET_EXECUTOR_ADDRESS or STARKNET_EXECUTOR_PRIVATE_KEY.';
+        console.error(`[Bridge] ${error}`);
+        return { success: false, fromAmount: conversion.fromAmount.toString(), toAmount: mockedToAmount, transactionHash: undefined, error };
+      }
+
+      if (!haveBuy && fromChain === 'btc') {
+        const error = 'BTC->STRK swap not supported. BUY_STRK contract address not configured.';
+        console.error(`[Bridge] ${error}`);
+        return { success: false, fromAmount: conversion.fromAmount.toString(), toAmount: mockedToAmount, transactionHash: undefined, error };
+      }
+
+      if (!haveSell && fromChain === 'strk') {
+        const error = 'STRK->BTC swap not supported. SELL_STRK contract address not configured.';
+        console.error(`[Bridge] ${error}`);
+        return { success: false, fromAmount: conversion.fromAmount.toString(), toAmount: mockedToAmount, transactionHash: undefined, error };
       }
 
       const executor = this.getExecutorAccount();
+      
+      // Retry helper
       const withRetry = async <T>(fn: () => Promise<T>, attempts = 3, delayMs = 500): Promise<T> => {
         let lastErr: unknown;
         for (let i = 0; i < attempts; i++) {
@@ -385,12 +403,40 @@ export class Web3IntegrationService {
         throw lastErr;
       };
 
-      // We only need to succeed when the swap doesn't revert; exact scaling is chain-specific.
-      // For BTC bridging, try BTC scaling candidates and pick the one that doesn't exceed on-chain reserves.
+      // Starknet `u256` is serialized as two felts: [low, high] (little-endian 128-bit limbs).
+      const U128_MASK = (1n << 128n) - 1n;
+      const encodeU256 = (value: bigint): [string, string] => {
+        const v = value < 0n ? 0n : value;
+        const low = v & U128_MASK;
+        const high = v >> 128n;
+        return [`0x${low.toString(16)}`, `0x${high.toString(16)}`];
+      };
+
+      // Helper to convert wallet address to a Starknet felt
+      const walletAddressToFelt = (address: string): string => {
+        // Hash the wallet address to a felt value (252-bit)
+        // Starknet field prime: 2^251 + 17*2^192 + 1
+        const FIELD_PRIME = BigInt('3618502788666131213697322783095070236838871856740738212971837645953235970560');
+        const crypto = require('crypto');
+        const hash = crypto.createHash('sha256').update(address).digest();
+        const hashBigInt = BigInt('0x' + hash.toString('hex'));
+        const felt = hashBigInt % FIELD_PRIME;
+        return '0x' + felt.toString(16);
+      };
+
+      const receiverWalletFelt = walletAddressToFelt(receiverWallet);
+      const senderWalletFelt = walletAddressToFelt(senderWallet);
+      console.log(`[Bridge] Wallet address to felt mapping:`);
+      console.log(`  receiverWallet: ${receiverWallet} -> ${receiverWalletFelt}`);
+      console.log(`  senderWallet: ${senderWallet} -> ${senderWalletFelt}`);
+
+      // Scaling candidates for BTC amounts
       const scalingCandidates = [1_000_000, 100_000_000]; // 1e6 and satoshi-like 1e8
       const fromFloat = Number(fromAmount);
       if (!Number.isFinite(fromFloat) || fromFloat <= 0) {
-        return { success: false, fromAmount, toAmount: '0' };
+        const error = `Invalid amount: ${fromAmount}. Expected finite positive number.`;
+        console.error(`[Bridge] ${error}`);
+        return { success: false, fromAmount, toAmount: '0', error };
       }
 
       if (fromChain === 'btc' && toChain === 'strk' && haveBuy) {
@@ -417,7 +463,9 @@ export class Web3IntegrationService {
         const btcRate = BigInt(btcRateRes?.[0] ?? '0');
 
         if (btcRate <= 0n || strkReserves <= 0n) {
-          return { success: false, fromAmount: conversion.fromAmount.toString(), toAmount: mockedToAmount };
+          const error = `Insufficient liquidity: BTC rate=${btcRate}, STRK reserves=${strkReserves}. Cannot execute swap.`;
+          console.error(`[Bridge] ${error}`);
+          return { success: false, fromAmount: conversion.fromAmount.toString(), toAmount: mockedToAmount, error };
         }
 
         // Convert the Pyth-derived STRK amount (decimal string) into token base units.
@@ -452,7 +500,9 @@ export class Web3IntegrationService {
 
         const desiredStrkBase = decimalStringToBigInt(mockedToAmount, decimals);
         if (desiredStrkBase <= 0n) {
-          return { success: false, fromAmount: conversion.fromAmount.toString(), toAmount: mockedToAmount };
+          const error = `Invalid STRK amount: ${mockedToAmount} (base units: ${desiredStrkBase}). Amount is zero or negative.`;
+          console.error(`[Bridge] ${error}`);
+          return { success: false, fromAmount: conversion.fromAmount.toString(), toAmount: mockedToAmount, error };
         }
 
         const cappedDesiredStrkBase = desiredStrkBase > strkReserves ? strkReserves : desiredStrkBase;
@@ -462,17 +512,22 @@ export class Web3IntegrationService {
         const chosenBtcAmount = (cappedDesiredStrkBase * 1_000_000n) / btcRate;
 
         if (chosenBtcAmount <= 0n) {
-          return { success: false, fromAmount: conversion.fromAmount.toString(), toAmount: mockedToAmount };
+          const error = `BTC amount calculation failed: ${chosenBtcAmount}. Cannot determine valid BTC amount for swap.`;
+          console.error(`[Bridge] ${error}`);
+          return { success: false, fromAmount: conversion.fromAmount.toString(), toAmount: mockedToAmount, error };
         }
 
-        // buyer_address, btc_amount, proof_hash, escrow_id
+        // Call: buy_strk_with_btc(receiver_wallet_felt, btc_amount, proof_hash, escrow_id)
         const escrowId = '0x0';
+        const [btcLow, btcHigh] = encodeU256(chosenBtcAmount);
+        console.log(`[Bridge] BTC->STRK: btc_amount=${chosenBtcAmount}, low=${btcLow}, high=${btcHigh}`);
+        
         const invoke = await withRetry(
           () =>
             executor.execute({
               contractAddress: buy,
               entrypoint: 'buy_strk_with_btc',
-              calldata: [receiverWallet, chosenBtcAmount.toString(), proofHash, escrowId],
+              calldata: [receiverWalletFelt, btcLow, btcHigh, proofHash, escrowId],
             }),
           3,
           800
@@ -488,6 +543,7 @@ export class Web3IntegrationService {
           success: true,
           fromAmount: conversion.fromAmount.toString(),
           toAmount: mockedToAmount,
+          transactionHash: invoke.transaction_hash,
         };
       }
 
@@ -504,59 +560,100 @@ export class Web3IntegrationService {
         const btcRes = BigInt(btcReserves?.[0] ?? '0');
 
         // Sell flow likely requires STRK allowance from sender to the contract.
-        // We attempt with scaling candidates; if on-chain transfer_from fails, we return success=false.
+        // Try scaling candidates; if on-chain transfer_from fails, continue to next candidate
         for (const scale of scalingCandidates) {
           const strkAmountU256 = BigInt(Math.floor(fromFloat * scale));
           if (strkAmountU256 <= 0n) continue;
 
-          const outRes = await withRetry(() =>
-            this.rpcProvider.callContract({
-              contractAddress: sell,
-              entrypoint: 'get_btc_output',
-              calldata: [strkAmountU256],
-            })
-          );
-          const out = BigInt(outRes?.[0] ?? '0');
-          if (out <= 0n || out > btcRes) continue;
-
-          const escrowId = '0x0';
-          const btcRecipient = '0x0'; // unused by contract logic; kept as sentinel
-
-          const invoke = await withRetry(
-            () =>
-              executor.execute({
+          const [strkLow, strkHigh] = encodeU256(strkAmountU256);
+          console.log(`[Bridge] STRK->BTC: trying strk_amount=${strkAmountU256}, low=${strkLow}, high=${strkHigh}`);
+          
+          try {
+            const outRes = await withRetry(() =>
+              this.rpcProvider.callContract({
                 contractAddress: sell,
-                entrypoint: 'sell_strk_for_btc',
-                calldata: [senderWallet, strkAmountU256.toString(), btcRecipient, proofHash, escrowId],
-              }),
-            3,
-            800
-          );
+                entrypoint: 'get_btc_output',
+                calldata: [strkLow, strkHigh],
+              })
+            );
+            const out = BigInt(outRes?.[0] ?? '0');
+            if (out <= 0n || out > btcRes) {
+              console.log(`[Bridge] Skipping scale ${scale}: out=${out}, btcRes=${btcRes}`);
+              continue;
+            }
 
-          await withRetry(
-            () => executor.waitForTransaction(invoke.transaction_hash),
-            3,
-            800
-          );
+            const escrowId = '0x0';
+            const btcRecipient = '0x0';
+            const [strkLow2, strkHigh2] = encodeU256(strkAmountU256);
 
-          return {
-            success: true,
-            fromAmount: conversion.fromAmount.toString(),
-            toAmount: out.toString(),
-          };
+            // Step 1: Approve the sell contract to spend STRK tokens (approve max u256 to avoid repeated approvals)
+            const MAX_U256_LOW = '0xffffffffffffffffffffffffffffffff';
+            const MAX_U256_HIGH = '0xffffffffffffffffffffffffffffffff';
+            console.log(`[Bridge] Approving ${sell} to spend STRK tokens (approving infinite amount)`);
+            const approvalTx = await withRetry(
+              () =>
+                executor.execute({
+                  contractAddress: this.strkTokenAddress,
+                  entrypoint: 'approve',
+                  calldata: [sell, MAX_U256_LOW, MAX_U256_HIGH],
+                }),
+              3,
+              800
+            );
+            
+            // Wait for approval to complete
+            await withRetry(
+              () => executor.waitForTransaction(approvalTx.transaction_hash),
+              3,
+              800
+            );
+            
+            console.log(`[Bridge] Approval successful: ${approvalTx.transaction_hash}`);
+
+            // Step 2: Execute the swap
+            const invoke = await withRetry(
+              () =>
+                executor.execute({
+                  contractAddress: sell,
+                  entrypoint: 'sell_strk_for_btc',
+                  calldata: [senderWalletFelt, strkLow2, strkHigh2, btcRecipient, proofHash, escrowId],
+                }),
+              3,
+              800
+            );
+
+            await withRetry(
+              () => executor.waitForTransaction(invoke.transaction_hash),
+              3,
+              800
+            );
+
+            return {
+              success: true,
+              fromAmount: conversion.fromAmount.toString(),
+              toAmount: out.toString(),
+              transactionHash: invoke.transaction_hash,
+            };
+          } catch (scaleError) {
+            console.log(`[Bridge] Scale ${scale} failed, trying next:`, scaleError instanceof Error ? scaleError.message : scaleError);
+            continue;
+          }
         }
 
-        return { success: false, fromAmount: conversion.fromAmount.toString(), toAmount: mockedToAmount };
+        const error = `STRK->BTC swap failed: No valid scaling candidate found. BTC reserves=${btcRes}. Swap amount might exceed available liquidity.`;
+        console.error(`[Bridge] ${error}`);
+        return { success: false, fromAmount: conversion.fromAmount.toString(), toAmount: mockedToAmount, transactionHash: undefined, error };
       }
 
-      // unsupported direction combination
-      return { success: false, fromAmount: conversion.fromAmount.toString(), toAmount: mockedToAmount };
     } catch (error) {
-      console.error('Bridge swap failed:', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error('[Bridge] Swap execution exception:', errorMsg);
       return {
         success: false,
         fromAmount,
         toAmount: mockedToAmount,
+        transactionHash: undefined,
+        error: `Swap execution failed: ${errorMsg}`,
       };
     }
   }
@@ -564,7 +661,7 @@ export class Web3IntegrationService {
   /**
    * Returns the server-side Starknet executor account used for on-chain calls.
    */
-  private getExecutorAccount(): Account {
+  public getExecutorAccount(): Account {
     const executorAddress = process.env.STARKNET_EXECUTOR_ADDRESS || "";
     const executorPrivateKey = process.env.STARKNET_EXECUTOR_PRIVATE_KEY || "";
 
@@ -576,11 +673,38 @@ export class Web3IntegrationService {
       return this.account;
     }
 
+    // Create account with proper defaults for fee estimation
     this.account = new Account({
       provider: this.rpcProvider,
       address: executorAddress,
       signer: executorPrivateKey,
     });
+
+    // Override execute method to add proper resource bounds
+    const originalExecute = this.account.execute.bind(this.account);
+    (this.account as any).execute = async function(calls: any, options?: any) {
+      // Estimate fees first to set proper resource bounds
+      try {
+        const estimatedFee = await this.estimateInvokeFee(calls, {
+          ...options,
+          skipValidate: true, // Skip validation to avoid signature check during estimation
+        });
+        
+        // Use estimated fee + 20% buffer for safety
+        const maxFee = estimatedFee.overall_fee ? 
+          (BigInt(estimatedFee.overall_fee) * 120n / 100n).toString() : 
+          undefined;
+
+        if (maxFee) {
+          options = { ...options, maxFee };
+        }
+      } catch (estimateError) {
+        console.warn('[Account] Fee estimation failed, proceeding without maxFee:', estimateError);
+        // Continue without maxFee - let the transaction fail more clearly
+      }
+
+      return originalExecute(calls, options);
+    };
 
     return this.account;
   }

@@ -1,6 +1,5 @@
 import type { ChainType } from "@/types";
 import { CrossChainService } from "./crossChainService";
-import { ZKProofService } from "./zkProofService";
 
 /**
  * On-Chain Integration Service

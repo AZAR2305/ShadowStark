@@ -1,4 +1,5 @@
 import { useCallback, useState, useEffect } from "react";
+import { AddressPurpose, BitcoinNetworkType, request as satsRequest } from "sats-connect";
 
 export interface XverseWallet {
   address: string;
@@ -148,12 +149,40 @@ async function tryXverseRequest(
   return tryObjectProviderRequest(provider, method, paramsVariants.filter((v) => typeof v !== "undefined"));
 }
 
-function getBitcoinNetworkTypeFromEnv(BitcoinNetworkType: Record<string, string>): string {
+function getBitcoinNetworkTypeFromEnv(): BitcoinNetworkType {
   const network = (process.env.NEXT_PUBLIC_BTC_NETWORK || "").toLowerCase();
-  if (network.includes("test")) {
-    return BitcoinNetworkType.Testnet ?? BitcoinNetworkType.Mainnet;
+  if (network.includes("regtest")) return BitcoinNetworkType.Regtest;
+  if (network.includes("signet")) return BitcoinNetworkType.Signet;
+  if (network.includes("test")) return BitcoinNetworkType.Testnet;
+  return BitcoinNetworkType.Mainnet;
+}
+
+function parseXverseAddresses(response: unknown): string[] {
+  if (!response || typeof response !== "object") {
+    return [];
   }
-  return BitcoinNetworkType.Mainnet ?? "Mainnet";
+
+  const obj = response as Record<string, unknown>;
+
+  // wallet_connect typically returns response.result.addresses
+  const resultObj =
+    obj.result && typeof obj.result === "object"
+      ? (obj.result as Record<string, unknown>)
+      : null;
+  const nestedAddresses = resultObj?.addresses;
+  const nestedParsed = toStringArray(nestedAddresses);
+  if (nestedParsed.length > 0) {
+    return nestedParsed;
+  }
+
+  // getAddresses often returns response.result as array
+  const directResult = toStringArray(obj.result);
+  if (directResult.length > 0) {
+    return directResult;
+  }
+
+  // fallback to generic parser over root
+  return toStringArray(response);
 }
 
 export function useXverseWallet() {
@@ -238,22 +267,61 @@ export function useXverseWallet() {
 
   const connectXverseInternal = useCallback(async () => {
     const provider = getProvider();
-    if (!provider) {
-      throw new Error("Xverse wallet not found. Please install and enable the Xverse extension.");
-    }
 
     let accountCandidates: string[] = [];
     let publicKey = "";
 
-    if (provider.request) {
-      const response = await tryXverseRequest(provider, "getAccounts");
-      accountCandidates = toStringArray(response);
-      
-      try {
-        const pubKeyResponse = await tryXverseRequest(provider, "getPublicKey");
-        publicKey = toPublicKey(pubKeyResponse);
-      } catch {
-        // Public key is optional for display.
+    // 1) sats-connect wallet_connect (recommended)
+    {
+      const networkParam = getBitcoinNetworkTypeFromEnv();
+
+      const response = await withTimeout(
+        satsRequest("wallet_connect", {
+          addresses: [AddressPurpose.Payment, AddressPurpose.Ordinals],
+          network: networkParam,
+          message: "ShadowFlow BTC OTC — connect Xverse wallet",
+        }),
+      );
+
+      // Response shape: { status: "success"|"error", result?: { addresses: [...] } }
+      const status = (response as { status?: string }).status;
+      if (status === "success") {
+        accountCandidates = parseXverseAddresses(response);
+        publicKey = toPublicKey(response);
+      } else {
+        // continue to injected provider fallbacks
+        accountCandidates = [];
+      }
+    }
+
+    // 2) injected provider fallbacks (legacy / some Xverse versions)
+    if (accountCandidates.length === 0) {
+      if (!provider) {
+        throw new Error("Xverse wallet not found. Please install and enable the Xverse extension.");
+      }
+
+      if (provider.request) {
+        // Try getAddresses (bitcoin)
+        try {
+          const addrResponse = await tryXverseRequest(provider, "getAddresses", [
+            { purposes: ["payment", "ordinals"], message: "ShadowFlow BTC OTC address request" },
+            undefined,
+          ]);
+          accountCandidates = parseXverseAddresses(addrResponse);
+          publicKey = publicKey || toPublicKey(addrResponse);
+        } catch {
+          // continue
+        }
+
+        // Legacy getAccounts
+        if (accountCandidates.length === 0) {
+          const legacyResponse = await tryXverseRequest(provider, "getAccounts", [
+            { purposes: ["payment", "ordinals"], message: "ShadowFlow BTC OTC — connect" },
+            undefined,
+          ]);
+          accountCandidates = parseXverseAddresses(legacyResponse);
+          publicKey = publicKey || toPublicKey(legacyResponse);
+        }
       }
     }
 

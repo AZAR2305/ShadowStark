@@ -21,6 +21,22 @@ export interface OnChainVerificationResult {
   contract: string;
 }
 
+type VerifierCallEvent = {
+  name: string;
+  data: {
+    proofHash: string;
+    verified: boolean;
+    timestamp: number;
+  };
+};
+
+type VerifierCallResult = {
+  verified: boolean;
+  txHash: string;
+  blockNumber: number;
+  events: VerifierCallEvent[];
+};
+
 export class OnChainZKVerifier {
   private static instance: OnChainZKVerifier;
   private verifierContractAddress: string;
@@ -98,7 +114,7 @@ export class OnChainZKVerifier {
    * Call GaragaVerifier.verify_proof via sncast
    * Executes: sncast call <contract> verify_proof <inputs>
    */
-  private async callVerifierContract(input: VerifierProofInput): Promise<any> {
+  private async callVerifierContract(input: VerifierProofInput): Promise<VerifierCallResult> {
     try {
       // In production, this would use sncast or starknet.js to call the contract
       // For now, we simulate the verification

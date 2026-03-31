@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { PythPriceService } from '@/lib/server/pythPriceService';
 
 /**
@@ -6,7 +6,7 @@ import { PythPriceService } from '@/lib/server/pythPriceService';
  * Get current BTC and STRK prices
  * Returns: { btc: price, strk: price, rate: btc/strk }
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const pythService = PythPriceService.getInstance();
     const priceMap = await pythService.getPrices(['BTC', 'STRK']);
@@ -48,10 +48,11 @@ export async function GET(request: NextRequest) {
       },
       timestamp: Date.now(),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error('Error fetching prices:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch prices', message: error?.message },
+      { error: 'Failed to fetch prices', message },
       { status: 500 }
     );
   }

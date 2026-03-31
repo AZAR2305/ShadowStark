@@ -88,6 +88,10 @@ async function runSimulation() {
         if (intentData.web3Execution) {
           console.log(`      Web3 Settled:  Status: ${intentData.web3Execution.status}`);
           console.log(`      Bridge Executed: ${intentData.web3Execution.bridgeExecuted ? "Yes" : "No"}`);
+          console.log(`      Bridge Tx Hash: ${intentData.web3Execution.bridgeTxHash ?? "N/A (no real on-chain swap tx)"}`);
+          if (!intentData.web3Execution.bridgeTxHash) {
+            throw new Error("No real bridge transaction hash returned.");
+          }
         }
     }
 

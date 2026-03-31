@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { hash } from "starknet";
 
-import type { ExecutionLog, OtcLifecycleStatus, OtcMatchRecord, TEEAttestation, TradeRecord, ZKProof, ChainType, CrossChainInfo, SettlementTransferInfo } from "@/types";
+import type { ExecutionLog, OtcLifecycleStatus, OtcMatchRecord, TEEAttestation, TradeRecord, ZKProof, ChainType, CrossChainInfo } from "@/types";
 import { CrossChainService } from "./crossChainService";
 
 type Direction = "buy" | "sell";
@@ -582,12 +582,13 @@ export async function submitIntent(payload: SubmitIntentPayload): Promise<{
   const btcBalance = toNumber(wallet.balances.btcBalance);
   const strkBalance = toNumber(wallet.balances.strkBalance);
 
-  if (payload.direction === "sell" && btcBalance < payload.depositAmount) {
-    throw new Error("Insufficient BTC balance for SELL intent reservation.");
+  // Reserve against the chain the user is actually sending from.
+  if (payload.sendChain === "btc" && btcBalance < payload.depositAmount) {
+    throw new Error("Insufficient BTC balance for intent reservation.");
   }
 
-  if (payload.direction === "buy" && strkBalance < payload.depositAmount) {
-    throw new Error("Insufficient STRK balance for BUY intent reservation.");
+  if (payload.sendChain === "strk" && strkBalance < payload.depositAmount) {
+    throw new Error("Insufficient STRK balance for intent reservation.");
   }
 
   const createdAt = Date.now();

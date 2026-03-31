@@ -123,7 +123,7 @@ mod LiquidityPool {
         #[external(v0)]
         fn is_pair_allowed(self: @ContractState, token_a: ContractAddress, token_b: ContractAddress) -> bool {
             self.allowed_pairs.read((token_a, token_b))
-        }
+            }
 
         fn _calculate_output(self: @ContractState, from_amount: u256, rate_from: u256, rate_to: u256) -> u256 {
             (from_amount * rate_to) / rate_from

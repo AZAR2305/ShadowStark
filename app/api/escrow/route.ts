@@ -36,10 +36,11 @@ export async function GET(
     }
 
     return NextResponse.json(balance);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Escrow balance error:', error);
+    const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: 'Failed to get escrow balance', message: error?.message },
+      { error: 'Failed to get escrow balance', message },
       { status: 500 }
     );
   }
@@ -129,10 +130,11 @@ export async function POST(request: NextRequest) {
       { error: 'Invalid action. Use deposit, release, or refund' },
       { status: 400 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Escrow transaction error:', error);
+    const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: 'Transaction failed', message: error?.message },
+      { error: 'Transaction failed', message },
       { status: 500 }
     );
   }

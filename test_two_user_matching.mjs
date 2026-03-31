@@ -64,6 +64,8 @@ async function main() {
     body: JSON.stringify(buyerIntent),
   });
   console.log("buyer intent:", buyerRes.status);
+  const buyerBody = await buyerRes.json();
+  console.log("buyer web3:", buyerBody?.web3Execution ?? buyerBody);
 
   const sellerIntent = {
     walletAddress: SELLER_WALLET,
@@ -85,6 +87,8 @@ async function main() {
     body: JSON.stringify(sellerIntent),
   });
   console.log("seller intent:", sellerRes.status);
+  const sellerBody = await sellerRes.json();
+  console.log("seller web3:", sellerBody?.web3Execution ?? sellerBody);
 
   const buyerMatchesRes = await fetch(
     `${API_BASE}/otc/matches?walletAddress=${encodeURIComponent(BUYER_WALLET)}`,
@@ -98,6 +102,9 @@ async function main() {
 
   console.log(`buyer matches: ${buyerMatches.length}`);
   console.log(`seller matches: ${sellerMatches.length}`);
+  if (buyerMatches.length === 0 || sellerMatches.length === 0) {
+    throw new Error("No matches created. Check chain pair compatibility, amounts, and real bridge execution status above.");
+  }
   if (buyerMatches[0]) {
     console.log("top match:", {
       id: buyerMatches[0].id,
