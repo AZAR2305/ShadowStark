@@ -411,7 +411,14 @@ export function OtcIntentPage() {
         // ============================================
         setSuccess("Step 1: Validating intent with ZK proof...");
         
-        const validateResponse = await requestJson<{ intentId: string; messageToSign: string; zkProof: unknown }>(
+        const validateResponse = await requestJson<{
+          intentId: string;
+          messageToSign: { message: string; intentId: string };
+          match?: { matchId: string; matchedWith: string; intentB: string; partyB: string };
+          hasMatch?: boolean;
+          zkProof: unknown;
+          status: string;
+        }>(
           "/api/otc/intents",
           {
             method: "POST",
@@ -434,6 +441,9 @@ export function OtcIntentPage() {
         );
 
         const { intentId, messageToSign, match, hasMatch } = validateResponse;
+        
+        // Ensure match is properly defined
+        const matchFound = hasMatch || !!match;
         // messageToSign is an object with { message, intentId, sendAmount, receiveAmount, sendChain, receiveChain }
         let messageText = typeof messageToSign === 'string' ? messageToSign : (messageToSign as any)?.message || messageToSign;
         
@@ -605,9 +615,9 @@ export function OtcIntentPage() {
         // ============================================
         // STEP 3: Check if match found, if so navigate to swap-matching
         // ============================================
-        console.log("[OTC-INTENT] After signing, checking match status:", { hasMatch, match });
+        console.log("[OTC-INTENT] After signing, checking match status:", { matchFound, match });
         
-        if (hasMatch && match) {
+        if (matchFound && match) {
           // Match found! Navigate to swap-matching interface
           console.log("[OTC-INTENT] ✅ Match found during validation! Navigating to swap-matching...");
           setSuccess(

@@ -214,12 +214,17 @@ export class OtcEscrowService {
               createdAt: Date.now(),
             },
             () => {
-              return {
-                matchId,
-                intentId,
-                timestamp: Date.now(),
-                action: 'atomic_swap_execution',
-              };
+              return [
+                {
+                  stepIndex: 0,
+                  nodeId: `atomic_swap_${matchId}`,
+                  action: 'EXECUTE' as const,
+                  maskedAmount: '0',
+                  timestamp: Date.now(),
+                  constraintsSatisfied: true,
+                  witnessGenerated: true,
+                }
+              ];
             }
           );
 

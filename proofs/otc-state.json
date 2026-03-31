@@ -309,6 +309,30 @@
       "matches": [],
       "latestAttestation": null,
       "latestProof": null
+    },
+    "tb1q9ajzy5dt03sddf32zmzsz0a9u7gzuxffpvrxra": {
+      "balances": {
+        "btcBalance": "1.2500",
+        "strkBalance": "250.00"
+      },
+      "strategies": [],
+      "trades": [],
+      "logs": [],
+      "matches": [],
+      "latestAttestation": null,
+      "latestProof": null
+    },
+    "bc1qy6ee72egtfdup05txxjtecrvzm2u56y6ufy8qq": {
+      "balances": {
+        "btcBalance": "1.2500",
+        "strkBalance": "250.00"
+      },
+      "strategies": [],
+      "trades": [],
+      "logs": [],
+      "matches": [],
+      "latestAttestation": null,
+      "latestProof": null
     }
   },
   "orderBook": {
