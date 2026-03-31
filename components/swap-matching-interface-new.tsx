@@ -285,6 +285,7 @@ export function SwapMatchingInterface({
           setMatch(data.matches[0]);
         }
       }, 1000);
+    } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to fund escrow";
       setError(msg);
     } finally {
