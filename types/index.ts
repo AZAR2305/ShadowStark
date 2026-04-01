@@ -1,4 +1,4 @@
-export type NodeType = "condition" | "split" | "execute" | "constraint" | "btc_transfer";
+export type NodeType = "condition" | "split" | "execute" | "constraint" | "btc_transfer" | "btc_send" | "btc_buy";
 
 export interface ConditionData {
   asset: "BTC";
@@ -26,6 +26,24 @@ export interface BtcTransferData {
   commitment: string;  // PUBLIC — Poseidon(secret, nullifier) stored on Starknet
 }
 
+export interface BtcSendData {
+  asset: "BTC";
+  senderAddress: string;    // PRIVATE — sender BTC address, never log
+  recipientAddress: string; // PRIVATE — recipient BTC address, never log
+  btcAmount: number;        // PRIVATE — amount in BTC, never log
+  fee: number;              // PUBLIC — network fee in satoshis
+  commitment: string;       // PUBLIC — Poseidon hash stored on Starknet
+}
+
+export interface BtcBuyData {
+  asset: "BTC_to_STRK";
+  senderBtcAddress: string; // PRIVATE — sender BTC address, never log
+  recipientStrkAddress: string; // PRIVATE — recipient Starknet address, never log
+  btcAmount: number;        // PRIVATE — amount in BTC, never log
+  expectedStrkAmount: number; // PUBLIC — expected STRK output
+  proofHash: string;        // PUBLIC — ZK proof commitment
+}
+
 export interface ConstraintData {
   field: string;
   operator: "<" | ">" | "==" | ">=" | "<=";
@@ -36,7 +54,7 @@ export interface StrategyNode {
   id: string;
   type: NodeType;
   position: { x: number; y: number };
-  data: ConditionData | SplitData | ExecuteData | ConstraintData | BtcTransferData;
+  data: ConditionData | SplitData | ExecuteData | ConstraintData | BtcTransferData | BtcSendData | BtcBuyData;
 }
 
 export interface NodeGraph {
@@ -161,7 +179,27 @@ export interface TEEAttestation {
   valid: boolean;
 }
 
-export type OtcLifecycleStatus = "open" | "matched" | "settled";
+export type OtcLifecycleStatus = "open" | "matched" | "settling" | "settled";
+export type ChainType = "btc" | "strk";
+
+export interface CrossChainInfo {
+  sendChain: ChainType;
+  receiveChain: ChainType;
+  receiveWalletAddress: string; // PRIVATE: destination wallet on receive chain
+  onChainIntentTxHash?: string; // Transaction hash when intent created on-chain
+  escrowTxHash?: string; // Transaction hash when escrowed
+  settlementTxHash?: string; // Transaction hash when settled on-chain
+}
+
+export interface SettlementTransferInfo {
+  fromWallet: string;
+  toWallet: string;
+  fromChain: ChainType;
+  toChain: ChainType;
+  amount: number;
+  txHash: string;
+  status: "pending" | "completed" | "failed";
+}
 
 export interface OtcMatchRecord {
   id: string;
@@ -174,7 +212,15 @@ export interface OtcMatchRecord {
   createdAt: number;
   settlementCommitment: string;
   proofHash?: string;
-  status: "matched" | "settled";
+  buyerConfirmed: boolean;
+  sellerConfirmed: boolean;
+  status: "matched" | "settling" | "settled";
+  buyerCrossChain: CrossChainInfo;
+  sellerCrossChain: CrossChainInfo;
+  buyerEscrowConfirmed?: boolean;
+  sellerEscrowConfirmed?: boolean;
+  buyerSettlement?: SettlementTransferInfo; // Settlement transfer details for buyer
+  sellerSettlement?: SettlementTransferInfo; // Settlement transfer details for seller
 }
 
 export interface TradeRecord {

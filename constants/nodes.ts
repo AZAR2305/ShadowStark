@@ -53,4 +53,20 @@ export const NODE_CONFIGS: Record<NodeType, NodeConfig> = {
     zkLabel: "HTLC Commitment",
     description: "Lock BTC via HTLC → Starknet commitment",
   },
+  btc_send: {
+    type: "btc_send",
+    label: "BTC Send",
+    color: "#F7931A",
+    icon: Bitcoin,
+    zkLabel: "BTC Witness",
+    description: "Send BTC from one address to another",
+  },
+  btc_buy: {
+    type: "btc_buy",
+    label: "Buy STRK",
+    color: "#EC4899",
+    icon: Bitcoin,
+    zkLabel: "Bridge Swap",
+    description: "Bridge BTC → STRK via on-chain contract",
+  },
 };

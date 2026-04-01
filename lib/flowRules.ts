@@ -7,7 +7,9 @@ const sourceLimits: Record<NodeType, number> = {
   split: 2,
   constraint: 1,
   execute: 0,
-  btc_transfer: 1
+  btc_transfer: 1,
+  btc_send: 1,
+  btc_buy: 1,
 };
 
 const targetLimits: Record<NodeType, number> = {
@@ -15,7 +17,9 @@ const targetLimits: Record<NodeType, number> = {
   split: 1,
   constraint: 1,
   execute: 2,
-  btc_transfer: 1
+  btc_transfer: 1,
+  btc_send: 1,
+  btc_buy: 1,
 };
 
 const allowedTargetsBySource: Record<NodeType, NodeType[]> = {
@@ -23,7 +27,9 @@ const allowedTargetsBySource: Record<NodeType, NodeType[]> = {
   split: ["condition", "constraint", "execute", "btc_transfer"],
   constraint: ["condition", "split", "execute", "btc_transfer"],
   execute: [],
-  btc_transfer: ["split", "constraint", "execute"]
+  btc_transfer: ["condition", "constraint", "execute"],
+  btc_send: ["condition", "constraint", "execute"],
+  btc_buy: ["condition", "constraint", "execute"],
 };
 
 const nodeTypeById = (graph: NodeGraph, id: string) => graph.nodes.find((node) => node.id === id)?.type;

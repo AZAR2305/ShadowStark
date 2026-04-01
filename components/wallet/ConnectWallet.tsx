@@ -8,16 +8,56 @@ import { useWalletStore } from "@/store/walletStore";
 import { fetchAllBalances } from "@/lib/balanceFetcher";
 import { btcClient } from "@/lib/btcClient";
 
-import { getAddress, AddressPurpose, BitcoinNetworkType } from "sats-connect";
+type XverseInjectedProvider = {
+  request: (method: string, params?: unknown) => Promise<unknown>;
+};
 
-declare global {
-  interface Window {
-    starknet?: {
-      enable: (opts?: Record<string, unknown>) => Promise<unknown>;
-      selectedAddress?: string;
-      account?: { address?: string };
-      disconnect?: () => Promise<void> | void;
+// ─── Detect Xverse injection ──────────────────────────────────────────────────
+function getXverseProvider() {
+  if (typeof window === "undefined") return null;
+  const win = window as Window & {
+    XverseProviders?: { BitcoinProvider?: XverseInjectedProvider };
+  };
+  return win.XverseProviders?.BitcoinProvider ?? null;
+}
+
+async function connectXverse(): Promise<{ paymentAddress: string; ordinalsAddress: string } | null> {
+  const provider = getXverseProvider();
+  if (!provider) return null;
+
+  try {
+    const response = await provider.request("getAccounts", {
+      purposes: ["payment", "ordinals"],
+      message: "ShadowFlow BTC OTC — connect Xverse wallet for BTC testnet4 transfers",
+    });
+
+    type XverseGetAccountsResponse = {
+      result?: { addresses?: Array<{ purpose: string; address: string }> };
     };
+    const typed = response as XverseGetAccountsResponse;
+
+    if (!typed || !typed.result || !Array.isArray(typed.result.addresses)) {
+      // Fallback shape if extension returns an array immediately
+      if (Array.isArray(response) && typeof response[0] === "string") {
+        return { paymentAddress: response[0] as string, ordinalsAddress: response[0] as string };
+      }
+      throw new Error("Xverse connection rejected or returned invalid schema.");
+    }
+
+    const addresses = typed.result.addresses;
+    const payment = addresses.find((a) => a.purpose === "payment");
+    const ordinals = addresses.find((a) => a.purpose === "ordinals");
+    return {
+      paymentAddress: payment?.address ?? ordinals?.address ?? "",
+      ordinalsAddress: ordinals?.address ?? payment?.address ?? "",
+    };
+  } catch (err) {
+    console.warn("[Xverse] getAccounts failed:", err);
+    
+    // Fallback error trap for V2.1.1
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.warn("⚠️ Xverse popup threw a rejection:", errMsg);
+    return null;
   }
 }
 
@@ -83,55 +123,61 @@ export function ConnectWallet() {
   };
 
   // ── Xverse BTC connect ────────────────────────────────────────────────────────
-  const handleXverseConnect = () => {
+  const handleXverseConnect = async () => {
     setXverseError(null);
     setXverseConnecting(true);
 
-    getAddress({
-      payload: {
-        purposes: [AddressPurpose.Payment, AddressPurpose.Ordinals],
-        message: "ShadowFlow BTC OTC — connect Xverse wallet for BTC testnet transfers",
-        network: {
-          type: BitcoinNetworkType.Testnet4,
-        },
-      },
-      onFinish: async (response) => {
+    // Check for Xverse extension (Authentication strictly restored)
+    const provider = getXverseProvider();
+    if (!provider) {
+      setXverseError(
+        "Xverse not detected. Install from https://www.xverse.app/download and make sure Bitcoin Testnet4 is enabled in Settings → Network.",
+      );
+      setXverseConnecting(false);
+      return;
+    }
+
+    try {
+      const accounts = await connectXverse();
+      if (!accounts || !accounts.paymentAddress) {
+        throw new Error("Xverse returned no addresses. Ensure Bitcoin Testnet mode is enabled in Xverse → Settings → Network.");
+      }
+
+      const btcAddr = accounts.paymentAddress;
+      console.log(`[ConnectWallet] ✅ Xverse connected: ${btcAddr.slice(0, 20)}...`);
+      setBtcAddress(btcAddr);
+      setBtcConnected(true);
+
+      // Fetch balance from Mempool with detailed logging
+      try {
+        console.log(`[ConnectWallet] Fetching BTC balance from Mempool for ${btcAddr.slice(0, 20)}...`);
+        const bal = await btcClient.getBalance(btcAddr);
+        console.log(`[ConnectWallet] ✅ Balance fetched: ${bal.totalBtc} BTC`);
+        setBtcAddress(btcAddr, bal.totalBtc);
+      } catch (balErr) {
+        console.error(`[ConnectWallet] ❌ Mempool balance fetch failed: ${balErr}`);
+        console.log(`[ConnectWallet] Setting balance to 0.00000000 (fallback)`);
+        setBtcAddress(btcAddr, "0.00000000");
+      }
+
+      // Also refresh Starknet balances if already connected
+      if (address) {
         try {
-          const payment = response.addresses.find((a) => a.purpose === AddressPurpose.Payment);
-          if (!payment) {
-            throw new Error("Wallet returned no payment address. Ensure Bitcoin Testnet route is enabled.");
-          }
-
-          const btcAddr = payment.address;
-          setBtcAddress(btcAddr);
-          setBtcConnected(true);
-
-          // Immediately fetch the BTC testnet balance from Mempool.space
-          try {
-            const bal = await btcClient.getBalance(btcAddr);
-            setBtcAddress(btcAddr, bal.totalBtc);
-          } catch (fetchErr) {
-            console.warn("Mempool API fetch failed (rate limit/timeout), deploying fallback demo balance.", fetchErr);
-            setBtcAddress(btcAddr, "0.15000000"); // 0.15 BTC demo fallback
-          }
-
-          // Also refresh Starknet balances if already connected
-          if (address) {
-            const balances = await fetchAllBalances(address, btcAddr);
-            setBalances(balances.btc, balances.strk, balances.eth);
-          }
-        } catch (err) {
-          console.error("[ConnectWallet] Xverse success handler failed:", err);
-          setXverseError(err instanceof Error ? err.message : "Failed to fetch balances after connection.");
-        } finally {
-          setXverseConnecting(false);
+          console.log(`[ConnectWallet] Fetching Starknet balances...`);
+          const balances = await fetchAllBalances(address, btcAddr);
+          setBalances(balances.btc, balances.strk, balances.eth);
+          console.log(`[ConnectWallet] ✅ Starknet balances fetched`);
+        } catch (starkErr) {
+          console.warn(`[ConnectWallet] ⚠️ Starknet balance fetch failed: ${starkErr}`);
         }
-      },
-      onCancel: () => {
-        setXverseConnecting(false);
-        setXverseError("Connection request was canceled.");
-      },
-    });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Xverse connection failed.";
+      setXverseError(msg);
+      console.error("[ConnectWallet] ❌ Xverse connect failed:", err);
+    } finally {
+      setXverseConnecting(false);
+    }
   };
 
   return (
